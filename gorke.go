@@ -17,11 +17,17 @@ func main() {
 
 	for command!="x" {
 
-		fmt.Print("> ")
+		fmt.Print("\n> ")
 
 		text, _ := reader.ReadString('\n')
 		
 		command=text[0:1]
+
+		if command=="l" {
+			fmt.Print("l - list commands\n")
+			fmt.Print("f - fenchar to piece\n")
+			fmt.Print("x - exit\n")
+		}
 
 		if command=="f" {
 			var fenchar=text[2]

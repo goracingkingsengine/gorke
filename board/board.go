@@ -2,6 +2,7 @@ package board
 
 import(
 	"fmt"
+	"math"
 	"github.com/goracingkingsengine/gorke/piece"
 	"github.com/goracingkingsengine/gorke/square"
 )
@@ -13,6 +14,82 @@ const BLACK             = piece.BLACK
 
 type TPosition [65]byte
 type TTurn piece.TColor
+
+const MOVE_TABLE_MAX_SIZE = 20000
+
+type TMoveTableKey struct {
+	Sq square.TSquare
+	P piece.TPiece
+}
+
+type TMoveDescriptor struct {
+	To square.TSquare
+	NextVector int
+	EndPiece bool
+}
+
+var ALL_PIECE_TYPES=[]piece.TPieceType{piece.KING,piece.QUEEN,piece.ROOK,piece.BISHOP,piece.KNIGHT}
+
+var MoveTable [MOVE_TABLE_MAX_SIZE]TMoveDescriptor
+
+var MoveTablePtrs=make(map[TMoveTableKey]int)
+
+func InitMoveTable() {
+	ptr:=0
+	for _,pt := range ALL_PIECE_TYPES {
+		for sq:=0; sq<square.BOARD_SIZE; sq++ {
+			
+			MoveTablePtrs[TMoveTableKey{square.TSquare(sq), piece.FromTypeAndColor(piece.TPieceType(pt),piece.BLACK)}]=ptr
+			MoveTablePtrs[TMoveTableKey{square.TSquare(sq), piece.FromTypeAndColor(piece.TPieceType(pt),piece.WHITE)}]=ptr
+
+			for df:=-2; df<=2; df++ {
+				for dr:=-2; dr<=2; dr++ {
+					vector_ok:=false
+					dfabs:=math.Abs(float64(df))
+					drabs:=math.Abs(float64(dr))
+					prodabs:=dfabs*drabs
+					sumabs:=dfabs+drabs
+					if (pt&piece.IS_JUMPING)!=0 {
+						vector_ok=vector_ok||(prodabs==2)
+					}
+					if (pt&piece.IS_STRAIGHT)!=0 {
+						vector_ok=vector_ok||(sumabs==1)
+					}
+					if (pt&piece.IS_DIAGONAL)!=0 {
+						vector_ok=vector_ok||(prodabs==1)
+					}
+					if vector_ok {
+						ok:=true
+						f:=int(square.FileOf(square.TSquare(sq)))
+						r:=int(square.RankOf(square.TSquare(sq)))
+						vector_start:=ptr
+						for ok {
+							f+=df
+							r+=dr
+							if square.FileRankOk(f,r) {
+								tsq:=square.FromFileRank(square.TFile(f),square.TRank(r))
+								MoveTable[ptr].To=tsq
+								MoveTable[ptr].EndPiece=false
+								ptr++
+							} else {
+								ok=false
+							}
+							if (pt&piece.IS_SLIDING)==0 {
+								ok=false
+							}
+						}						
+						for vector_next_ptr:=vector_start; vector_next_ptr<ptr; vector_next_ptr++ {
+							MoveTable[vector_next_ptr].NextVector=ptr
+						}
+					}
+				}
+			}
+
+			MoveTable[ptr].EndPiece=true
+			ptr++
+		}
+	}
+}
 
 func (pos *TPosition) SetFromFen(fen string) bool {
 	var l=len(fen)

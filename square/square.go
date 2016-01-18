@@ -30,6 +30,18 @@ func RankOf(sq TSquare) TRank {
 	return TRank((byte(sq)&RANK_MASK)>>BOARD_SHIFT)
 }
 
+func FileOk(f int) bool {
+	return (f>=0) && (f<BOARD_WIDTH)
+}
+
+func RankOk(r int) bool {
+	return (r>=0) && (r<BOARD_HEIGHT)
+}
+
+func FileRankOk(f int, r int) bool {
+	return FileOk(f) && RankOk(r)
+}
+
 func AlgebFileToFile(af byte) (TFile, bool) {
 	if (af<'a') || (af>('a'+BOARD_WIDTHL)) {
 		return 0, true

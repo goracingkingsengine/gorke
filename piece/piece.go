@@ -1,81 +1,85 @@
 package piece
 
-const IS_PIECE    = 1<<6
-const IS_SLIDING  = 1<<5
-const IS_STRAIGHT = 1<<4
-const IS_DIAGONAL = 1<<3
-const IS_SINGLE   = 1<<2
-const IS_JUMPING  = 1<<1
+const IS_SLIDING  = 1<<6
+const IS_STRAIGHT = 1<<5
+const IS_DIAGONAL = 1<<4
+const IS_SINGLE   = 1<<3
+const IS_JUMPING  = 1<<2
+const IS_WHITE    = 1<<1
+const IS_BLACK    = 1<<0
 
-const TYPE_MASK   = IS_PIECE|IS_SLIDING|IS_STRAIGHT|IS_DIAGONAL|IS_SINGLE|IS_JUMPING
+const IS_PIECE    = IS_WHITE|IS_BLACK
 
-const WHITE       = 1<<0
+const TYPE_MASK   = IS_SLIDING|IS_STRAIGHT|IS_DIAGONAL|IS_SINGLE|IS_JUMPING
 
-const COLOR_MASK  = WHITE
+const WHITE       = IS_WHITE
 
-const BLACK       = 0
+const COLOR_MASK  = IS_PIECE
 
-const KING        = IS_PIECE|IS_STRAIGHT|IS_DIAGONAL|IS_SINGLE
-const QUEEN       = IS_PIECE|IS_STRAIGHT|IS_DIAGONAL|IS_SLIDING
-const ROOK        = IS_PIECE|IS_STRAIGHT|IS_SLIDING
-const BISHOP      = IS_PIECE|IS_DIAGONAL|IS_SLIDING
-const KNIGHT      = IS_PIECE|IS_JUMPING|IS_SINGLE
+const BLACK       = IS_BLACK
+
+const KING        = IS_STRAIGHT|IS_DIAGONAL|IS_SINGLE
+const QUEEN       = IS_STRAIGHT|IS_DIAGONAL|IS_SLIDING
+const ROOK        = IS_STRAIGHT|IS_SLIDING
+const BISHOP      = IS_DIAGONAL|IS_SLIDING
+const KNIGHT      = IS_JUMPING|IS_SINGLE
 
 const NO_PIECE    = 0
+const NO_COLOR    = 0
 
 type TPiece byte
 type TPieceType byte
 type TColor byte
 
 func TypeOf(p TPiece) TPieceType {
- return TPieceType(p&TYPE_MASK)
+	return TPieceType(p&TYPE_MASK)
 }
 
 func ColorOf(p TPiece) TColor {
- return TColor(p&COLOR_MASK)
+	return TColor(p&COLOR_MASK)
 }
 
 func FromTypeAndColor(t TPieceType, c TColor) TPiece {
- return TPiece(byte(t)|byte(c))
+	return TPiece(byte(t)|byte(c))
 }
 
 func ToFenChar(p TPiece) byte {
- var fenchar byte
+	var fenchar byte
 
- switch TypeOf(p) {
-  case KING : fenchar='k'
-  case QUEEN : fenchar='q'
-  case ROOK : fenchar='r'
-  case BISHOP : fenchar='b'
-  case KNIGHT : fenchar='n'
-  default : return ' '
- }
+	switch TypeOf(p) {
+		case KING : fenchar='k'
+		case QUEEN : fenchar='q'
+		case ROOK : fenchar='r'
+		case BISHOP : fenchar='b'
+		case KNIGHT : fenchar='n'
+		default : return ' '
+	}
 
- if ColorOf(p)==WHITE {
-  fenchar-='a'-'A'
- }
+	if ColorOf(p)==WHITE {
+		fenchar-='a'-'A'
+	}
 
- return fenchar
+	return fenchar
 }
 
 func FromFenChar(fenchar byte) TPiece {
- var c TColor=WHITE
+	var c TColor=WHITE
 
- if(fenchar>'a') {
-  c=BLACK
-  fenchar-='a'-'A'
- }
+	if(fenchar>'a') {
+		c=BLACK
+		fenchar-='a'-'A'
+	}
 
- var t TPieceType
+	var t TPieceType
 
- switch fenchar {
-  case 'K' : t=KING
-  case 'Q' : t=QUEEN
-  case 'R' : t=ROOK
-  case 'B' : t=BISHOP
-  case 'N' : t=KNIGHT
-  default : return NO_PIECE
- }
+	switch fenchar {
+		case 'K' : t=KING
+		case 'Q' : t=QUEEN
+		case 'R' : t=ROOK
+		case 'B' : t=BISHOP
+		case 'N' : t=KNIGHT
+		default : return NO_PIECE
+	}
 
- return FromTypeAndColor(t,c)
+	return FromTypeAndColor(t,c)
 }

@@ -4,6 +4,8 @@ import(
 	"fmt"
 	"os"
 	"bufio"
+	"strings"
+	"text/scanner"
 	"github.com/goracingkingsengine/gorke/piece"
 )
 
@@ -19,22 +21,37 @@ func main() {
 
 		fmt.Print("\n> ")
 
-		text, _ := reader.ReadString('\n')
-		
-		command=text[0:1]
+		commandline, _ := reader.ReadString('\n')
 
-		if command=="l" {
-			fmt.Print("l - list commands\n")
-			fmt.Print("f - fenchar to piece\n")
-			fmt.Print("x - exit\n")
-		}
+		var s scanner.Scanner
+		s.Init(strings.NewReader(commandline))
+		s.Mode=scanner.ScanIdents|scanner.ScanInts
+		var tok rune
 
-		if command=="f" {
-			var fenchar=text[2]
+		tok = s.Scan()
 
-			var p=piece.FromFenChar(fenchar)
+		if tok!=scanner.EOF {
+			command=s.TokenText()
 
-			fmt.Printf("fenchar %c piece code %d type %d color %d",fenchar,p,piece.TypeOf(p),piece.ColorOf(p))
+			if command=="list" {
+				fmt.Print("list - list commands\n")
+				fmt.Print("ftop - fenchar to piece\n")
+				fmt.Print("x - exit\n")
+			}
+
+			if command=="ftop" {
+				tok=s.Scan()
+
+				var fenchar byte=' '
+
+				if tok!=scanner.EOF {
+					fenchar=s.TokenText()[0]
+				}
+
+				var p=piece.FromFenChar(fenchar)
+
+				fmt.Printf("piece code %d type %d color %d",p,piece.TypeOf(p),piece.ColorOf(p))
+			}
 		}
 
 	}

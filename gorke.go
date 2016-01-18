@@ -5,8 +5,10 @@ import(
 	"os"
 	"bufio"
 	"strings"
+	"strconv"
 	"text/scanner"
 	"github.com/goracingkingsengine/gorke/piece"
+	"github.com/goracingkingsengine/gorke/square"
 )
 
 func main() {
@@ -36,6 +38,8 @@ func main() {
 			if command=="list" {
 				fmt.Print("list - list commands\n")
 				fmt.Print("ftop - fenchar to piece\n")
+				fmt.Print("atos - algeb to square\n")
+				fmt.Print("stoa - square to algeb\n")
 				fmt.Print("x - exit\n")
 			}
 
@@ -51,6 +55,28 @@ func main() {
 				var p=piece.FromFenChar(fenchar)
 
 				fmt.Printf("piece code %d type %d color %d",p,piece.TypeOf(p),piece.ColorOf(p))
+			}
+
+			if command=="atos" {
+				tok=s.Scan()
+
+				if tok!=scanner.EOF {
+					var s=square.FromAlgeb(s.TokenText())
+
+					fmt.Printf("square %d",s)
+				}
+			}
+
+			if command=="stoa" {
+				tok=s.Scan()
+
+				if tok!=scanner.EOF {
+					sq,err:=strconv.Atoi(s.TokenText())
+
+					if err==nil {
+						fmt.Printf("algeb %s",square.ToAlgeb(square.TSquare(sq)))
+					}
+				}
 			}
 		}
 

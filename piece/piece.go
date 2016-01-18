@@ -65,19 +65,19 @@ func ToFenChar(p TPiece) byte {
 func FromFenChar(fenchar byte) TPiece {
 	var c TColor=WHITE
 
-	if(fenchar>'a') {
-		c=BLACK
-		fenchar-='a'-'A'
-	}
-
 	var t TPieceType
 
 	switch fenchar {
 		case 'K' : t=KING
+		case 'k' : t=KING; c=BLACK
 		case 'Q' : t=QUEEN
+		case 'q' : t=QUEEN; c=BLACK
 		case 'R' : t=ROOK
+		case 'r' : t=ROOK; c=BLACK
 		case 'B' : t=BISHOP
+		case 'b' : t=BISHOP; c=BLACK
 		case 'N' : t=KNIGHT
+		case 'n' : t=KNIGHT; c=BLACK
 		default : return NO_PIECE
 	}
 

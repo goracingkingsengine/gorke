@@ -9,11 +9,30 @@ import(
 	"text/scanner"
 	"github.com/goracingkingsengine/gorke/piece"
 	"github.com/goracingkingsengine/gorke/square"
+	"github.com/goracingkingsengine/gorke/board"
 )
+
+var b board.TBoard
+var s scanner.Scanner
+var commandline string
+
+func GetRest() string {
+	var p=s.Pos().Offset+1
+	if (p>=len(commandline)) {
+		return ""
+	}
+	return commandline[p:]
+}
+
+func Reset() {
+	b.SetFromFen("8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1")
+}
 
 func main() {
 
 	fmt.Printf("Gorke - Go Racing Kings Chess Variant Engine")
+
+	Reset()
 
 	var command string=""
 
@@ -23,11 +42,10 @@ func main() {
 
 		fmt.Print("\n> ")
 
-		commandline, _ := reader.ReadString('\n')
+		commandline, _ = reader.ReadString('\n')
 
-		var s scanner.Scanner
 		s.Init(strings.NewReader(commandline))
-		s.Mode=scanner.ScanIdents|scanner.ScanInts
+		s.Mode=scanner.ScanIdents
 		var tok rune
 
 		tok = s.Scan()
@@ -36,11 +54,26 @@ func main() {
 			command=s.TokenText()
 
 			if command=="list" {
-				fmt.Print("list - list commands\n")
+				fmt.Print("l - list commands\n")
 				fmt.Print("ftop - fenchar to piece\n")
 				fmt.Print("atos - algeb to square\n")
 				fmt.Print("stoa - square to algeb\n")
+				fmt.Print("f - set from fen\n")
+				fmt.Print("r - reset\n")
+				fmt.Print("p - print\n")
 				fmt.Print("x - exit\n")
+			}
+
+			if command=="p" {
+				fmt.Print(b.ToPrintable())
+			}
+
+			if command=="r" {
+				Reset()
+			}
+
+			if command=="f" {
+				b.SetFromFen(GetRest())
 			}
 
 			if command=="ftop" {

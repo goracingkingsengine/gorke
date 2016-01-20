@@ -62,9 +62,28 @@ func main() {
 				fmt.Print("stoa - square to algeb\n")
 				fmt.Print("mt sq p - move table\n")
 				fmt.Print("f - set from fen\n")
+				fmt.Print("im - init move gen\n")
+				fmt.Print("ns - next sq\n")
+				fmt.Print("np - next pseudo legal move\n")
 				fmt.Print("r - reset\n")
 				fmt.Print("p - print\n")
 				fmt.Print("x - exit\n")
+			}
+
+			if command=="im" {
+				b.InitMoveGen()
+				fmt.Printf("%s\n",b.ReportMoveGen())
+			}
+
+			if command=="ns" {
+				b.CurrentSq++
+				b.NextSq()
+				fmt.Printf("%s\n",b.ReportMoveGen())
+			}
+
+			if command=="np" {
+				res:=b.NextPseudoLegalMove()
+				fmt.Printf("res %v - %s\n",res,b.ReportMoveGen())
 			}
 
 			if command=="p" {

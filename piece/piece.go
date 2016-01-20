@@ -39,6 +39,13 @@ func ColorOf(p TPiece) TColor {
 	return TColor(p&COLOR_MASK)
 }
 
+func InvColorOf(c TColor) TColor {
+	c&=COLOR_MASK
+	if c==WHITE { return BLACK }
+	if c==BLACK { return WHITE }
+	return NO_COLOR
+}
+
 func FromTypeAndColor(t TPieceType, c TColor) TPiece {
 	return TPiece(byte(t)|byte(c))
 }

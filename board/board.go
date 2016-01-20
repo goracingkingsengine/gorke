@@ -28,11 +28,90 @@ type TMoveDescriptor struct {
 	EndPiece bool
 }
 
+type TMove struct {
+	From square.TSquare
+	To square.TSquare
+}
+
+type TBoard struct {
+	pos TPosition
+	CurrentSq square.TSquare
+	CurrentPiece piece.TPiece
+	CurrentPtr int
+	CurrentMove TMove
+}
+
 var ALL_PIECE_TYPES=[]piece.TPieceType{piece.KING,piece.QUEEN,piece.ROOK,piece.BISHOP,piece.KNIGHT}
 
 var MoveTable [MOVE_TABLE_MAX_SIZE]TMoveDescriptor
 
 var MoveTablePtrs=make(map[TMoveTableKey]int)
+
+func (b *TBoard) GetMoveTablePtr(sq square.TSquare, p piece.TPiece) int {
+	return MoveTablePtrs[TMoveTableKey{sq,p}]
+}
+
+func (b *TBoard) PieceAtSq(sq square.TSquare) piece.TPiece {
+	return piece.TPiece(b.pos[byte(sq)])
+}
+
+func (b *TBoard) ColorOfSq(sq square.TSquare) piece.TColor {
+	return piece.ColorOf(piece.TPiece(b.pos[byte(sq)]))
+}
+
+func (b *TBoard) NextSq() bool {
+	for b.CurrentSq<square.BOARD_SIZE {
+		if b.ColorOfSq(b.CurrentSq)==b.GetColorOfTurn() {
+			b.CurrentPiece=b.PieceAtSq(b.CurrentSq)
+			b.CurrentPtr=b.GetMoveTablePtr(b.CurrentSq,b.CurrentPiece)
+			return true
+		}
+		b.CurrentSq++
+	}
+	return false
+}
+
+func (m *TMove) ToAlgeb() string {
+	return fmt.Sprintf("%s%s",square.ToAlgeb(m.From),square.ToAlgeb(m.To))
+}
+
+func (b *TBoard) ReportMoveGen() string {
+	return fmt.Sprintf("current sq %d : current piece %c : current ptr %d current move %s",
+		b.CurrentSq,piece.ToFenChar(b.CurrentPiece),b.CurrentPtr,b.CurrentMove.ToAlgeb())
+}
+
+func (b *TBoard) InitMoveGen() {
+	b.CurrentSq=0
+	b.NextSq()
+}
+
+func (b *TBoard) NextPseudoLegalMove() bool {
+	for b.CurrentSq<square.BOARD_SIZE {
+		md:=MoveTable[b.CurrentPtr]
+		if md.EndPiece {
+			b.CurrentSq++
+			b.NextSq()
+		} else {
+			c:=b.ColorOfSq(md.To)
+			if c==b.GetColorOfTurn() {
+				// own piece
+				b.CurrentPtr=md.NextVector
+			} else if c==piece.NO_COLOR {
+				// empty
+				b.CurrentMove=TMove{b.CurrentSq,md.To}
+				b.CurrentPtr++
+				return true
+			} else {
+				// capture
+				b.CurrentMove=TMove{b.CurrentSq,md.To}
+				b.CurrentPtr=md.NextVector
+				return true
+			}
+		}
+	}
+	return false
+}
+
 
 func InitMoveTable() {
 	ptr:=0
@@ -89,6 +168,18 @@ func InitMoveTable() {
 			ptr++
 		}
 	}
+}
+
+func InvTurnOf(t TTurn) TTurn {
+	return TTurn(piece.InvColorOf(piece.TColor(t)))
+}
+
+func InvColorOfTurn(t TTurn) piece.TColor {
+	return piece.TColor(InvTurnOf(t))
+}
+
+func InvTurnOfColor(c piece.TColor) TTurn {
+	return TTurn(piece.InvColorOf(c))
 }
 
 func (pos *TPosition) SetFromFen(fen string) bool {
@@ -151,6 +242,14 @@ func (pos *TPosition) GetTurn() TTurn {
 	return TTurn(pos[TURN_INDEX])
 }
 
+func (b *TBoard) GetTurn() TTurn {
+	return b.pos.GetTurn()
+}
+
+func (b *TBoard) GetColorOfTurn() piece.TColor {
+	return piece.TColor(b.pos.GetTurn())
+}
+
 func (pos *TPosition) ToPrintable() string {
 	var buff=""
 
@@ -168,12 +267,6 @@ func (pos *TPosition) ToPrintable() string {
 	buff+=fmt.Sprintf("\nturn : %c\n",TurnToChar(pos.GetTurn()))
 
 	return buff
-}
-
-type TBoard struct {
-	pos TPosition
-	sq square.TSquare
-	p piece.TPiece
 }
 
 func (b *TBoard) SetFromFen(fen string) bool {

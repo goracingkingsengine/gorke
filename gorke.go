@@ -6,6 +6,7 @@ import(
 	"bufio"
 	"strings"
 	"strconv"
+	"time"
 	"text/scanner"
 	"github.com/goracingkingsengine/gorke/piece"
 	"github.com/goracingkingsengine/gorke/square"
@@ -29,9 +30,29 @@ func Reset() {
 	b.SetFromFen("8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1")
 }
 
+func Print() {
+	fmt.Printf("%s",node.ToPrintable())
+}
+
+var stop=false
+var ready=false
+
+func Analyze() {
+	ready=false
+	for stop==false {
+		for i:=0; (i<500) && (!stop); i++ {
+			node.AddNode()
+		}
+		node.MiniMaxOut()
+		Print()
+		fmt.Printf("\ntotal nodes %d\n",len(board.NodeManager.Nodes))
+	}
+	ready=true
+}
+
 func main() {
 
-	fmt.Printf("Gorke - Go Racing Kings Chess Variant Engine")
+	fmt.Printf("\nGorke - Go Racing Kings Chess Variant Engine\n")
 
 	board.Init()
 
@@ -39,7 +60,9 @@ func main() {
 
 	node=b.CreateNode()
 
-	fmt.Printf("\n%s\n",node.ToPrintable())
+	game:=[]board.TNode{node}
+
+	Print()
 
 	var command string=""
 
@@ -72,10 +95,11 @@ func main() {
 				fmt.Print("np - next pseudo legal move\n")
 				fmt.Print("r - reset\n")
 				fmt.Print("p - print\n")
-				fmt.Print("cn - create node\n")
-				fmt.Print("pn - print node\n")
+				fmt.Print("a - analyze\n")
+				fmt.Print("s - stop\n")
+				fmt.Print("i - minimax out\n")
 				fmt.Print("m i - make ith node move\n")
-				fmt.Print("u i - unmake ith node move\n")
+				fmt.Print("d - del move\n")
 				fmt.Print("x - exit\n")
 			}
 
@@ -86,36 +110,46 @@ func main() {
 					i,err:=strconv.Atoi(s.TokenText())
 					if err==nil {
 						b.MakeMove(node.Moves[i])
+						node=b.CreateNode()
+						game=append(game,node)
 						command="p"
 					}
 				}
 			}
 
-			if command=="u" {
-				tok=s.Scan()
-
-				if tok!=scanner.EOF {
-					i,err:=strconv.Atoi(s.TokenText())
-					if err==nil {
-						b.UnMakeMove(node.Moves[i])
-						command="p"
-					}
+			if command=="d" {
+				if len(game)>1 {
+					game=game[0:len(game)-1]
 				}
+				node=game[len(game)-1]
+				command="p"
 			}
 
 			if command=="r" {
 				Reset()
-				command="cn"
-			}
-
-			if command=="cn" {
 				node=b.CreateNode()
-				node.Eval()
-				command="pn"
+				game=[]board.TNode{node}
+				command="p"
 			}
 
-			if command=="pn" {
-				fmt.Printf("\n%s\n",node.ToPrintable())
+			if command=="a" {
+				stop=false
+				go Analyze()
+			}
+
+			if command=="s" {
+				stop=true
+				for ready==false {
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
+
+			if command=="i" {
+				node.MiniMaxOut()
+			}
+
+			if command=="p" {
+				Print()
 			}
 
 			if command=="im" {
@@ -132,10 +166,6 @@ func main() {
 			if command=="np" {
 				res:=b.NextPseudoLegalMove()
 				fmt.Printf("res %v - %s\n",res,b.ReportMoveGen())
-			}
-
-			if command=="p" {
-				fmt.Printf("\n%s",b.ToPrintable())
 			}
 
 			if command=="f" {

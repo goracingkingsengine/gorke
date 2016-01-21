@@ -3,14 +3,21 @@ package board
 import(
 	"fmt"
 	"math"
+	"math/rand"
+	"time"
+	"sort"
 	"github.com/goracingkingsengine/gorke/piece"
 	"github.com/goracingkingsengine/gorke/square"
 )
 
-const WHITE             = piece.WHITE
-const BLACK             = piece.BLACK
 const INDEX_OF_WHITE    = 1
 const INDEX_OF_BLACK    = 0
+
+const INFINITE          = 10000
+const INVALID           = 10*INFINITE
+
+const PLUS_INFINITE     = INFINITE
+const MINUS_INFINITE    = -INFINITE
 
 //////////////////////////////////////////
 
@@ -21,7 +28,7 @@ const KINGSPOS_INDEX    = 66
 var PIECE_VALUES=map [piece.TPieceType]int{
 	piece.NO_PIECE : 0,
 	piece.KING : 0,
-	piece.QUEEN : 9,
+	piece.QUEEN : 7,
 	piece.ROOK : 5,
 	piece.BISHOP : 3,
 	piece.KNIGHT : 3}
@@ -65,14 +72,16 @@ type TBoard struct {
 	Material [2]int
 }
 
+type TMoveList []TMove
+
 type TNode struct {
-	b TBoard
-	Moves []TMove
+	B TBoard
+	Moves TMoveList
 	Visited int
 }
 
 type TNodeManager struct {
-	nodes map[TPosition]TNode
+	Nodes map[TPosition]TNode
 }
 
 var ALL_PIECE_TYPES=[]piece.TPieceType{piece.KING,piece.QUEEN,piece.ROOK,piece.BISHOP,piece.KNIGHT}
@@ -83,19 +92,24 @@ var MoveTablePtrs=make(map[TMoveTableKey]int)
 
 var NodeManager TNodeManager
 
+var r=rand.New(rand.NewSource(time.Now().UnixNano()))
+
+////////////////////////////////////////
+
 func (b *TBoard) CreateNode() TNode {
 	if NodeManager.DoesNodeExist(b.Pos) {
-		fmt.Printf("node already exists\n")
+		//fmt.Printf("node already exists\n")
 		return NodeManager.GetNode(b.Pos)
 	}
 	var node TNode
-	node.b=*b
+	node.B=*b
 	b.InitMoveGen()
 	node.Moves=[]TMove{}
 	node.Visited=1
 	for b.NextLegalMove() {
 		node.Moves=append(node.Moves,b.CurrentMove)
 	}
+	node.Eval()
 	NodeManager.AddNode(b.Pos,node)
 	return node
 }
@@ -185,13 +199,35 @@ func (b *TBoard) UnMakeMove(m TMove) {
 
 }
 
-func (n *TNode) ToPrintable() string {
-	var buff="----- Node: -----\n\n"
-	buff+=fmt.Sprintf("%s\nMoves (%d):\n\n",n.b.ToPrintable(),len(n.Moves))
-	for i := range n.Moves {
-		buff+=fmt.Sprintf("%3d %s\n",i,n.Moves[i].ToPrintable())
+func GetLineRecursive(b TBoard, line string) string {
+	if NodeManager.DoesNodeExist(b.Pos) {
+		n:=NodeManager.GetNode(b.Pos)
+		if len(n.Moves)<=0 {
+			return line
+		}
+		m:=n.Moves[0]
+		b.MakeMove(m)
+		return GetLineRecursive(b, line+m.ToAlgeb()+" ")
+	} else {
+		return line
 	}
-	return fmt.Sprintf("%s\n----- End Node ( visited %d ) -----",buff,n.Visited)
+}
+
+func (b TBoard) GetLine() string {
+	return GetLineRecursive(b, "")
+}
+
+func (n *TNode) ToPrintable() string {
+	var buff="\n----- Node: -----\n\n"
+	buff+=fmt.Sprintf("%s\nMoves (%d):\n\n",n.B.ToPrintable(),len(n.Moves))
+	b:=n.B
+	for i,m := range n.Moves {
+		b.MakeMove(m)
+		line:=b.GetLine()
+		buff+=fmt.Sprintf("%3d %s pv %s\n",i+1,m.ToPrintable(),line)
+		b.UnMakeMove(m)
+	}
+	return fmt.Sprintf("%s\n----- End Node ( visited %d ) -----\n",buff,n.Visited)
 }
 
 func (b *TBoard) GetKingPos(c piece.TColor) square.TSquare {
@@ -207,7 +243,11 @@ func (b *TBoard) EvalCol(c piece.TColor) int {
 }
 
 func (b *TBoard) Eval() int {
-	return b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)
+	e:=b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)
+	if b.GetTurn()==piece.BLACK {
+		return e
+	}
+	return -e
 }
 
 func GetMoveTablePtr(sq square.TSquare, p piece.TPiece) int {
@@ -238,8 +278,15 @@ func (m *TMove) ToAlgeb() string {
 	return fmt.Sprintf("%s%s",square.ToAlgeb(m.From),square.ToAlgeb(m.To))
 }
 
+func SignedEval(eval int) string {
+	if eval<=0 {
+		return fmt.Sprintf("%d",eval)
+	}
+	return fmt.Sprintf("+%d",eval)
+}
+
 func (m *TMove) ToPrintable() string {
-	return fmt.Sprintf("%s (%c) %d",m.ToAlgeb(),piece.ToFenChar(m.CapPiece),m.Eval)
+	return fmt.Sprintf("%s %s",m.ToAlgeb(),SignedEval(m.Eval))
 }
 
 func (b *TBoard) ReportMoveGen() string {
@@ -260,7 +307,7 @@ func (b *TBoard) NextLegalMove() bool {
 		b.UnMakeMove(b.CurrentMove)
 		ok:=(!incheck)&&(!oppincheck)
 		if !ok {
-			fmt.Printf("move thrown out for check %s\n",b.CurrentMove.ToAlgeb())
+			//fmt.Printf("move thrown out for check %s\n",b.CurrentMove.ToAlgeb())
 		}
 		if ok {
 			return true
@@ -303,23 +350,23 @@ func Init() {
 }
 
 func InitNodeManager() {
-	NodeManager.nodes=make(map [TPosition]TNode)
+	NodeManager.Nodes=make(map [TPosition]TNode)
 }
 
 func (nm *TNodeManager) DoesNodeExist(pos TPosition) bool {
-	_,err := nm.nodes[pos]
+	_,err := nm.Nodes[pos]
 	return err
 }
 
 func (nm *TNodeManager) GetNode(pos TPosition) TNode {
-	n,_ := nm.nodes[pos]
+	n,_ := nm.Nodes[pos]
 	n.Visited++
-	nm.nodes[pos]=n
+	nm.Nodes[pos]=n
 	return n
 }
 
 func (nm *TNodeManager) AddNode(pos TPosition, n TNode) {
-	nm.nodes[pos]=n
+	nm.Nodes[pos]=n
 }
 
 func InitMoveTable() {
@@ -436,7 +483,7 @@ func (pos *TPosition) SetFromFen(fen string) bool {
 		return false
 	}
 
-	pos[TURN_INDEX]=WHITE
+	pos[TURN_INDEX]=piece.WHITE
 
 	feni++
 
@@ -450,7 +497,7 @@ func (pos *TPosition) SetFromFen(fen string) bool {
 }
 
 func TurnToChar(t TTurn) byte {
-	if t==BLACK {
+	if t==piece.BLACK {
 		return 'b'
 	}
 	return 'w'
@@ -558,8 +605,112 @@ func (b *TBoard) ToPrintable() string {
 
 func (n *TNode) Eval() {
 	for i, m:=range n.Moves {
-		n.b.MakeMove(m)
-		n.Moves[i].Eval=n.b.Eval()
-		n.b.UnMakeMove(m)
+		n.B.MakeMove(m)
+		n.Moves[i].Eval=n.B.Eval()
+		n.B.UnMakeMove(m)
 	}
+	n.Sort()
+}
+
+func (n *TNode) Len() int {
+	return len(n.Moves)
+}
+
+func (n *TNode) Less(i,j int) bool {
+	return n.Moves[i].Eval>n.Moves[j].Eval
+}
+
+func (n *TNode) Swap(i,j int) {
+	n.Moves[i] , n.Moves[j] = n.Moves[j] , n.Moves[i]
+}
+
+func (n *TNode) Sort() {
+	sort.Sort(n)
+}
+
+func AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
+	n:=b.CreateNode()
+	l:=len(n.Moves)
+	if l<=0 {
+		return false
+	}
+	if depth>max_depth {
+		return false
+	}
+	var selm TMove
+	ok:=false
+	li:=l-1
+	for i:=0; (i<l) && (!ok); i++ {
+		if i==li {
+			selm=n.Moves[li]
+			ok=true
+		} else {
+			ok=r.Intn(100)>50
+			if ok {
+				selm=n.Moves[i]
+			}
+		}
+	}
+	if ok {
+		b.MakeMove(selm)
+		if NodeManager.DoesNodeExist(b.Pos) {
+			return AddNodeRecursive(b, depth+1, max_depth, append(line,selm))
+		} else {
+			b.CreateNode()
+			//fmt.Printf("\nadded %s\n",append(line,selm).ToPrintable())
+			return true
+		}
+	}
+	return false
+}
+
+func (n *TNode) AddNode() bool {
+	b:=n.B
+	success:=AddNodeRecursive(b, 0, 10, []TMove{})
+	if !success {
+		//fmt.Printf("\nadding node failed\n")
+	}
+	return success
+}
+
+func (ml TMoveList) ToPrintable() string {
+	buff:=""
+	for i,m := range ml {
+		buff+=fmt.Sprintf("%s",m.ToAlgeb())
+		if i<(len(ml)-1) {
+			buff+=" "
+		}
+	}
+	return fmt.Sprintf("line [ %s ]",buff)
+}
+
+func MinimaxOutRecursive(b TBoard, depth int, max_depth int) int {
+	if !NodeManager.DoesNodeExist(b.Pos) {
+		return INVALID
+	}
+	if(depth>max_depth) {
+		return INVALID
+	}
+	n:=NodeManager.GetNode(b.Pos)
+	max:=MINUS_INFINITE
+	for i,m := range n.Moves {
+		b.MakeMove(m)
+		geteval:=MinimaxOutRecursive(b, depth+1, max_depth)
+		b.UnMakeMove(m)
+		eval:=m.Eval
+		if(geteval!=INVALID) {
+			eval=geteval
+		}
+		if(eval>max) {
+			max=eval
+		}
+		n.Moves[i].Eval=eval
+	}
+	n.Sort()
+	return -max
+}
+
+func (n *TNode) MiniMaxOut() {
+	b:=n.B
+	MinimaxOutRecursive(b, 0, 10)
 }

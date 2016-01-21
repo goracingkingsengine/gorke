@@ -7,12 +7,18 @@ import(
 	"github.com/goracingkingsengine/gorke/square"
 )
 
-const TURN_INDEX        = 64
-
 const WHITE             = piece.WHITE
 const BLACK             = piece.BLACK
 
-type TPosition [65]byte
+//////////////////////////////////////////
+
+const TURN_INDEX        = 64
+const DEPTH_INDEX       = 65
+
+type TPosition [square.BOARD_SIZE+2]byte
+
+//////////////////////////////////////////
+
 type TTurn piece.TColor
 
 const MOVE_TABLE_MAX_SIZE = 20000
@@ -31,14 +37,22 @@ type TMoveDescriptor struct {
 type TMove struct {
 	From square.TSquare
 	To square.TSquare
+	Piece piece.TPiece
+	CapPiece piece.TPiece
+	Eval int
 }
 
 type TBoard struct {
-	pos TPosition
+	Pos TPosition
 	CurrentSq square.TSquare
 	CurrentPiece piece.TPiece
 	CurrentPtr int
 	CurrentMove TMove
+}
+
+type TNode struct {
+	Pos TPosition
+	Moves []TMove
 }
 
 var ALL_PIECE_TYPES=[]piece.TPieceType{piece.KING,piece.QUEEN,piece.ROOK,piece.BISHOP,piece.KNIGHT}
@@ -47,16 +61,54 @@ var MoveTable [MOVE_TABLE_MAX_SIZE]TMoveDescriptor
 
 var MoveTablePtrs=make(map[TMoveTableKey]int)
 
+func (b *TBoard) CreateNode() TNode {
+	var node TNode
+	node.Pos=b.Pos
+	b.InitMoveGen()
+	node.Moves=[]TMove{}
+	for b.NextLegalMove() {
+		node.Moves=append(node.Moves,b.CurrentMove)
+	}
+	return node
+}
+
+func (b *TBoard) SetSq(sq square.TSquare,p piece.TPiece) {
+	b.Pos[byte(sq)]=byte(p)
+}
+
+func (b *TBoard) MakeMove(m TMove) {
+	b.SetSq(m.From,piece.NO_PIECE)
+	b.SetSq(m.To,m.Piece)
+	b.SetTurn(InvTurnOf(b.GetTurn()))
+	b.SetDepth(b.GetDepth()+1)
+}
+
+func (b *TBoard) UnMakeMove(m TMove) {
+	b.SetSq(m.From,m.Piece)
+	b.SetSq(m.To,m.CapPiece)
+	b.SetTurn(InvTurnOf(b.GetTurn()))
+	b.SetDepth(b.GetDepth()-1)
+}
+
+func (n *TNode) ToPrintable() string {
+	var buff="----- Node: -----\n\n"
+	buff+=fmt.Sprintf("%s\nMoves (%d):\n\n",n.Pos.ToPrintable(),len(n.Moves))
+	for i := range n.Moves {
+		buff+=fmt.Sprintf("%3d %s\n",i,n.Moves[i].ToPrintable())
+	}
+	return fmt.Sprintf("%s\n----- End Node -----",buff)
+}
+
 func (b *TBoard) GetMoveTablePtr(sq square.TSquare, p piece.TPiece) int {
 	return MoveTablePtrs[TMoveTableKey{sq,p}]
 }
 
 func (b *TBoard) PieceAtSq(sq square.TSquare) piece.TPiece {
-	return piece.TPiece(b.pos[byte(sq)])
+	return piece.TPiece(b.Pos[byte(sq)])
 }
 
 func (b *TBoard) ColorOfSq(sq square.TSquare) piece.TColor {
-	return piece.ColorOf(piece.TPiece(b.pos[byte(sq)]))
+	return piece.ColorOf(piece.TPiece(b.Pos[byte(sq)]))
 }
 
 func (b *TBoard) NextSq() bool {
@@ -75,6 +127,10 @@ func (m *TMove) ToAlgeb() string {
 	return fmt.Sprintf("%s%s",square.ToAlgeb(m.From),square.ToAlgeb(m.To))
 }
 
+func (m *TMove) ToPrintable() string {
+	return fmt.Sprintf("%s (%c) %d",m.ToAlgeb(),piece.ToFenChar(m.CapPiece),m.Eval)
+}
+
 func (b *TBoard) ReportMoveGen() string {
 	return fmt.Sprintf("current sq %d : current piece %c : current ptr %d current move %s",
 		b.CurrentSq,piece.ToFenChar(b.CurrentPiece),b.CurrentPtr,b.CurrentMove.ToAlgeb())
@@ -85,6 +141,10 @@ func (b *TBoard) InitMoveGen() {
 	b.NextSq()
 }
 
+func (b *TBoard) NextLegalMove() bool {
+	return b.NextPseudoLegalMove()
+}
+
 func (b *TBoard) NextPseudoLegalMove() bool {
 	for b.CurrentSq<square.BOARD_SIZE {
 		md:=MoveTable[b.CurrentPtr]
@@ -92,18 +152,19 @@ func (b *TBoard) NextPseudoLegalMove() bool {
 			b.CurrentSq++
 			b.NextSq()
 		} else {
-			c:=b.ColorOfSq(md.To)
+			cp:=b.PieceAtSq(md.To)
+			c:=piece.ColorOf(cp)
 			if c==b.GetColorOfTurn() {
 				// own piece
 				b.CurrentPtr=md.NextVector
 			} else if c==piece.NO_COLOR {
 				// empty
-				b.CurrentMove=TMove{b.CurrentSq,md.To}
+				b.CurrentMove=TMove{b.CurrentSq,md.To,b.CurrentPiece,cp,0}
 				b.CurrentPtr++
 				return true
 			} else {
 				// capture
-				b.CurrentMove=TMove{b.CurrentSq,md.To}
+				b.CurrentMove=TMove{b.CurrentSq,md.To,b.CurrentPiece,cp,0}
 				b.CurrentPtr=md.NextVector
 				return true
 			}
@@ -228,6 +289,8 @@ func (pos *TPosition) SetFromFen(fen string) bool {
 		pos[TURN_INDEX]=piece.BLACK
 	}
 
+	pos[DEPTH_INDEX]=0
+
 	return true
 }
 
@@ -242,12 +305,36 @@ func (pos *TPosition) GetTurn() TTurn {
 	return TTurn(pos[TURN_INDEX])
 }
 
+func (pos *TPosition) GetDepth() int {
+	return int(pos[DEPTH_INDEX])
+}
+
+func (pos *TPosition) SetTurn(t TTurn) {
+	pos[TURN_INDEX]=byte(t)
+}
+
+func (pos *TPosition) SetDepth(d int) {
+	pos[DEPTH_INDEX]=byte(d)
+}
+
 func (b *TBoard) GetTurn() TTurn {
-	return b.pos.GetTurn()
+	return b.Pos.GetTurn()
+}
+
+func (b *TBoard) GetDepth() int {
+	return b.Pos.GetDepth()
+}
+
+func (b *TBoard) SetTurn(t TTurn) {
+	b.Pos.SetTurn(t)
+}
+
+func (b *TBoard) SetDepth(d int) {
+	b.Pos.SetDepth(d)
 }
 
 func (b *TBoard) GetColorOfTurn() piece.TColor {
-	return piece.TColor(b.pos.GetTurn())
+	return piece.TColor(b.Pos.GetTurn())
 }
 
 func (pos *TPosition) ToPrintable() string {
@@ -264,15 +351,15 @@ func (pos *TPosition) ToPrintable() string {
 		}
 	}
 
-	buff+=fmt.Sprintf("\nturn : %c\n",TurnToChar(pos.GetTurn()))
+	buff+=fmt.Sprintf("\nturn : %c , depth : %d\n",TurnToChar(pos.GetTurn()),pos.GetDepth())
 
 	return buff
 }
 
 func (b *TBoard) SetFromFen(fen string) bool {
-	return b.pos.SetFromFen(fen)
+	return b.Pos.SetFromFen(fen)
 }
 
 func (b *TBoard) ToPrintable() string {
-	return b.pos.ToPrintable()
+	return b.Pos.ToPrintable()
 }

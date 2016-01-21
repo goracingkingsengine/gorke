@@ -15,6 +15,7 @@ import(
 var b board.TBoard
 var s scanner.Scanner
 var commandline string
+var node board.TNode
 
 func GetRest() string {
 	var p=s.Pos().Offset+1
@@ -35,6 +36,10 @@ func main() {
 	board.InitMoveTable()
 
 	Reset()
+
+	node=b.CreateNode()
+
+	fmt.Printf("\n%s\n",node.ToPrintable())
 
 	var command string=""
 
@@ -67,7 +72,49 @@ func main() {
 				fmt.Print("np - next pseudo legal move\n")
 				fmt.Print("r - reset\n")
 				fmt.Print("p - print\n")
+				fmt.Print("cn - create node\n")
+				fmt.Print("pn - print node\n")
+				fmt.Print("m i - make ith node move\n")
+				fmt.Print("u i - unmake ith node move\n")
 				fmt.Print("x - exit\n")
+			}
+
+			if command=="m" {
+				tok=s.Scan()
+
+				if tok!=scanner.EOF {
+					i,err:=strconv.Atoi(s.TokenText())
+					if err==nil {
+						b.MakeMove(node.Moves[i])
+						command="p"
+					}
+				}
+			}
+
+			if command=="u" {
+				tok=s.Scan()
+
+				if tok!=scanner.EOF {
+					i,err:=strconv.Atoi(s.TokenText())
+					if err==nil {
+						b.UnMakeMove(node.Moves[i])
+						command="p"
+					}
+				}
+			}
+
+			if command=="r" {
+				Reset()
+				command="cn"
+			}
+
+			if command=="cn" {
+				node=b.CreateNode()
+				command="pn"
+			}
+
+			if command=="pn" {
+				fmt.Printf("\n%s\n",node.ToPrintable())
 			}
 
 			if command=="im" {
@@ -87,11 +134,7 @@ func main() {
 			}
 
 			if command=="p" {
-				fmt.Print(b.ToPrintable())
-			}
-
-			if command=="r" {
-				Reset()
+				fmt.Printf("\n%s",b.ToPrintable())
 			}
 
 			if command=="f" {

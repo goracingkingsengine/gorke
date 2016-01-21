@@ -9,13 +9,26 @@ import(
 
 const WHITE             = piece.WHITE
 const BLACK             = piece.BLACK
+const INDEX_OF_WHITE    = 1
+const INDEX_OF_BLACK    = 0
 
 //////////////////////////////////////////
 
 const TURN_INDEX        = 64
 const DEPTH_INDEX       = 65
+const KINGSPOS_INDEX    = 66
 
-type TPosition [square.BOARD_SIZE+2]byte
+var PIECE_VALUES=map [piece.TPieceType]int{
+	piece.NO_PIECE : 0,
+	piece.KING : 0,
+	piece.QUEEN : 9,
+	piece.ROOK : 5,
+	piece.BISHOP : 3,
+	piece.KNIGHT : 3}
+
+const KING_ADVANCE_VALUE = 4
+
+type TPosition [square.BOARD_SIZE+4]byte
 
 //////////////////////////////////////////
 
@@ -48,11 +61,18 @@ type TBoard struct {
 	CurrentPiece piece.TPiece
 	CurrentPtr int
 	CurrentMove TMove
+	KingPos [2]byte
+	Material [2]int
 }
 
 type TNode struct {
-	Pos TPosition
+	b TBoard
 	Moves []TMove
+	Visited int
+}
+
+type TNodeManager struct {
+	nodes map[TPosition]TNode
 }
 
 var ALL_PIECE_TYPES=[]piece.TPieceType{piece.KING,piece.QUEEN,piece.ROOK,piece.BISHOP,piece.KNIGHT}
@@ -61,14 +81,22 @@ var MoveTable [MOVE_TABLE_MAX_SIZE]TMoveDescriptor
 
 var MoveTablePtrs=make(map[TMoveTableKey]int)
 
+var NodeManager TNodeManager
+
 func (b *TBoard) CreateNode() TNode {
+	if NodeManager.DoesNodeExist(b.Pos) {
+		fmt.Printf("node already exists\n")
+		return NodeManager.GetNode(b.Pos)
+	}
 	var node TNode
-	node.Pos=b.Pos
+	node.b=*b
 	b.InitMoveGen()
 	node.Moves=[]TMove{}
+	node.Visited=1
 	for b.NextLegalMove() {
 		node.Moves=append(node.Moves,b.CurrentMove)
 	}
+	NodeManager.AddNode(b.Pos,node)
 	return node
 }
 
@@ -76,30 +104,113 @@ func (b *TBoard) SetSq(sq square.TSquare,p piece.TPiece) {
 	b.Pos[byte(sq)]=byte(p)
 }
 
+func (b *TBoard) IsSquareColInCheck(sq square.TSquare, c piece.TColor) bool {
+	ksq:=b.Pos.GetKingPos(c)
+	for _, pt := range ALL_PIECE_TYPES {
+		test_piece:=piece.FromTypeAndColor(pt,piece.InvColorOf(c))
+		ptr:=GetMoveTablePtr(ksq,test_piece)
+		for !MoveTable[ptr].EndPiece {
+			md:=MoveTable[ptr]
+			p:=b.PieceAtSq(md.To)
+			if p==test_piece {
+				return true
+			}
+			if piece.ColorOf(p)!=piece.NO_COLOR {
+				ptr=md.NextVector
+			} else {
+				ptr++
+			}
+		}
+	}
+	return false
+}
+
+func (b *TBoard) IsSqInCheck(sq square.TSquare) bool {
+	return b.IsSquareColInCheck(sq,b.GetColorOfTurn())
+}
+
+func (b *TBoard) IsColInCheck(c piece.TColor) bool {
+	return b.IsSquareColInCheck(b.Pos.GetKingPos(c),c)
+}
+
+func (b *TBoard) IsInCheck() bool {
+	return b.IsColInCheck(b.GetColorOfTurn())
+}
+
+func (b *TBoard) IsOppInCheck() bool {
+	return b.IsColInCheck(piece.InvColorOf(b.GetColorOfTurn()))
+}
+
 func (b *TBoard) MakeMove(m TMove) {
+
 	b.SetSq(m.From,piece.NO_PIECE)
+
 	b.SetSq(m.To,m.Piece)
-	b.SetTurn(InvTurnOf(b.GetTurn()))
+
+	if(m.Piece==(piece.WHITE|piece.KING)) {
+		b.Pos[KINGSPOS_INDEX+1]=byte(m.To)
+	}
+
+	if(m.Piece==(piece.BLACK|piece.KING)) {
+		b.Pos[KINGSPOS_INDEX]=byte(m.To)
+	}
+
+	b.Material[IndexOfColor(b.GetColorOfInvTurn())]-=PIECE_VALUES[piece.TypeOf(m.CapPiece)]
+
 	b.SetDepth(b.GetDepth()+1)
+
+	b.SetTurn(InvTurnOf(b.GetTurn()))
+
 }
 
 func (b *TBoard) UnMakeMove(m TMove) {
+
 	b.SetSq(m.From,m.Piece)
+
+	if(m.Piece==(piece.WHITE|piece.KING)) {
+		b.Pos[KINGSPOS_INDEX+1]=byte(m.From)
+	}
+
+	if(m.Piece==(piece.BLACK|piece.KING)) {
+		b.Pos[KINGSPOS_INDEX]=byte(m.From)
+	}
+
 	b.SetSq(m.To,m.CapPiece)
-	b.SetTurn(InvTurnOf(b.GetTurn()))
+
+	b.Material[IndexOfColor(b.GetColorOfTurn())]+=PIECE_VALUES[piece.TypeOf(m.CapPiece)]
+
 	b.SetDepth(b.GetDepth()-1)
+
+	b.SetTurn(InvTurnOf(b.GetTurn()))
+
 }
 
 func (n *TNode) ToPrintable() string {
 	var buff="----- Node: -----\n\n"
-	buff+=fmt.Sprintf("%s\nMoves (%d):\n\n",n.Pos.ToPrintable(),len(n.Moves))
+	buff+=fmt.Sprintf("%s\nMoves (%d):\n\n",n.b.ToPrintable(),len(n.Moves))
 	for i := range n.Moves {
 		buff+=fmt.Sprintf("%3d %s\n",i,n.Moves[i].ToPrintable())
 	}
-	return fmt.Sprintf("%s\n----- End Node -----",buff)
+	return fmt.Sprintf("%s\n----- End Node ( visited %d ) -----",buff,n.Visited)
 }
 
-func (b *TBoard) GetMoveTablePtr(sq square.TSquare, p piece.TPiece) int {
+func (b *TBoard) GetKingPos(c piece.TColor) square.TSquare {
+	return b.Pos.GetKingPos(c)
+}
+
+func (b *TBoard) EvalCol(c piece.TColor) int {
+	eval:=b.Material[IndexOfColor(c)]
+	ksq:=b.GetKingPos(c)
+	ksqr:=int(square.BOARD_HEIGHTL-square.RankOf(ksq))
+	eval+=ksqr*KING_ADVANCE_VALUE
+	return eval
+}
+
+func (b *TBoard) Eval() int {
+	return b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)
+}
+
+func GetMoveTablePtr(sq square.TSquare, p piece.TPiece) int {
 	return MoveTablePtrs[TMoveTableKey{sq,p}]
 }
 
@@ -115,7 +226,7 @@ func (b *TBoard) NextSq() bool {
 	for b.CurrentSq<square.BOARD_SIZE {
 		if b.ColorOfSq(b.CurrentSq)==b.GetColorOfTurn() {
 			b.CurrentPiece=b.PieceAtSq(b.CurrentSq)
-			b.CurrentPtr=b.GetMoveTablePtr(b.CurrentSq,b.CurrentPiece)
+			b.CurrentPtr=GetMoveTablePtr(b.CurrentSq,b.CurrentPiece)
 			return true
 		}
 		b.CurrentSq++
@@ -142,7 +253,20 @@ func (b *TBoard) InitMoveGen() {
 }
 
 func (b *TBoard) NextLegalMove() bool {
-	return b.NextPseudoLegalMove()
+	for b.NextPseudoLegalMove() {
+		b.MakeMove(b.CurrentMove)
+		incheck:=b.IsInCheck()
+		oppincheck:=b.IsOppInCheck()
+		b.UnMakeMove(b.CurrentMove)
+		ok:=(!incheck)&&(!oppincheck)
+		if !ok {
+			fmt.Printf("move thrown out for check %s\n",b.CurrentMove.ToAlgeb())
+		}
+		if ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *TBoard) NextPseudoLegalMove() bool {
@@ -173,6 +297,30 @@ func (b *TBoard) NextPseudoLegalMove() bool {
 	return false
 }
 
+func Init() {
+	InitMoveTable()
+	InitNodeManager()
+}
+
+func InitNodeManager() {
+	NodeManager.nodes=make(map [TPosition]TNode)
+}
+
+func (nm *TNodeManager) DoesNodeExist(pos TPosition) bool {
+	_,err := nm.nodes[pos]
+	return err
+}
+
+func (nm *TNodeManager) GetNode(pos TPosition) TNode {
+	n,_ := nm.nodes[pos]
+	n.Visited++
+	nm.nodes[pos]=n
+	return n
+}
+
+func (nm *TNodeManager) AddNode(pos TPosition, n TNode) {
+	nm.nodes[pos]=n
+}
 
 func InitMoveTable() {
 	ptr:=0
@@ -243,6 +391,10 @@ func InvTurnOfColor(c piece.TColor) TTurn {
 	return TTurn(piece.InvColorOf(c))
 }
 
+func IndexOfColor(c piece.TColor) byte {
+	return byte(c)>>1
+}
+
 func (pos *TPosition) SetFromFen(fen string) bool {
 	var l=len(fen)
 
@@ -270,6 +422,9 @@ func (pos *TPosition) SetFromFen(fen string) bool {
 			p:=piece.FromFenChar(c)
 			if p!=piece.NO_PIECE {
 				pos[ptr]=byte(p)
+				if piece.TypeOf(p)==piece.KING {
+					pos[KINGSPOS_INDEX+IndexOfColor(piece.ColorOf(p))]=byte(ptr)
+				}
 				ptr++
 			}
 		}
@@ -305,6 +460,10 @@ func (pos *TPosition) GetTurn() TTurn {
 	return TTurn(pos[TURN_INDEX])
 }
 
+func (pos *TPosition) GetInvTurn() TTurn {
+	return InvTurnOf(TTurn(pos[TURN_INDEX]))
+}
+
 func (pos *TPosition) GetDepth() int {
 	return int(pos[DEPTH_INDEX])
 }
@@ -319,6 +478,10 @@ func (pos *TPosition) SetDepth(d int) {
 
 func (b *TBoard) GetTurn() TTurn {
 	return b.Pos.GetTurn()
+}
+
+func (b *TBoard) GetInvTurn() TTurn {
+	return b.Pos.GetInvTurn()
 }
 
 func (b *TBoard) GetDepth() int {
@@ -337,6 +500,14 @@ func (b *TBoard) GetColorOfTurn() piece.TColor {
 	return piece.TColor(b.Pos.GetTurn())
 }
 
+func (b *TBoard) GetColorOfInvTurn() piece.TColor {
+	return piece.TColor(b.Pos.GetInvTurn())
+}
+
+func (pos *TPosition) GetKingPos(c piece.TColor) square.TSquare {
+	return square.TSquare(pos[KINGSPOS_INDEX+IndexOfColor(c)])
+}
+
 func (pos *TPosition) ToPrintable() string {
 	var buff=""
 
@@ -351,15 +522,44 @@ func (pos *TPosition) ToPrintable() string {
 		}
 	}
 
-	buff+=fmt.Sprintf("\nturn : %c , depth : %d\n",TurnToChar(pos.GetTurn()),pos.GetDepth())
+	buff+=fmt.Sprintf("\nturn : %c , depth : %d , wkpos : %s , bkpos : %s\n",
+		TurnToChar(pos.GetTurn()),pos.GetDepth(),
+		square.ToAlgeb(pos.GetKingPos(piece.WHITE)),
+		square.ToAlgeb(pos.GetKingPos(piece.BLACK)))
 
 	return buff
 }
 
+func (b *TBoard) CalcMaterial() {
+	b.Material[INDEX_OF_WHITE]=0
+	b.Material[INDEX_OF_BLACK]=0
+	for sq:=0; sq<square.BOARD_SIZE; sq++ {
+		p:=b.PieceAtSq(square.TSquare(sq))
+		c:=piece.ColorOf(p)
+		t:=piece.TypeOf(p)
+		b.Material[IndexOfColor(c)]+=PIECE_VALUES[t]
+	}
+}
+
 func (b *TBoard) SetFromFen(fen string) bool {
-	return b.Pos.SetFromFen(fen)
+	ok:=b.Pos.SetFromFen(fen)
+	if !ok {
+		return false
+	}
+	b.CalcMaterial()
+	return true
 }
 
 func (b *TBoard) ToPrintable() string {
-	return b.Pos.ToPrintable()
+	return fmt.Sprintf("%s\nmaterial w : %d, b : %d | eval %d / w : %d, b : %d\n",
+		b.Pos.ToPrintable(),b.Material[INDEX_OF_WHITE],b.Material[INDEX_OF_BLACK],
+		b.Eval(),b.EvalCol(piece.WHITE),b.EvalCol(piece.BLACK))
+}
+
+func (n *TNode) Eval() {
+	for i, m:=range n.Moves {
+		n.b.MakeMove(m)
+		n.Moves[i].Eval=n.b.Eval()
+		n.b.UnMakeMove(m)
+	}
 }

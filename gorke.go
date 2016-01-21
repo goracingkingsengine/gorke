@@ -33,7 +33,7 @@ func main() {
 
 	fmt.Printf("Gorke - Go Racing Kings Chess Variant Engine")
 
-	board.InitMoveTable()
+	board.Init()
 
 	Reset()
 
@@ -110,6 +110,7 @@ func main() {
 
 			if command=="cn" {
 				node=b.CreateNode()
+				node.Eval()
 				command="pn"
 			}
 

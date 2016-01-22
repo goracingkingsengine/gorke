@@ -78,6 +78,7 @@ type TNode struct {
 	B TBoard
 	Moves TMoveList
 	Visited int
+	AbortMiniMax bool
 }
 
 type TNodeManager struct {
@@ -684,7 +685,10 @@ func (ml TMoveList) ToPrintable() string {
 	return fmt.Sprintf("line [ %s ]",buff)
 }
 
-func MinimaxOutRecursive(b TBoard, depth int, max_depth int) int {
+func (ownern *TNode) MinimaxOutRecursive(b TBoard, depth int, max_depth int) int {
+	if ownern.AbortMiniMax {
+		return INVALID
+	}
 	if !NodeManager.DoesNodeExist(b.Pos) {
 		return INVALID
 	}
@@ -695,7 +699,7 @@ func MinimaxOutRecursive(b TBoard, depth int, max_depth int) int {
 	max:=MINUS_INFINITE
 	for i,m := range n.Moves {
 		b.MakeMove(m)
-		geteval:=MinimaxOutRecursive(b, depth+1, max_depth)
+		geteval:=ownern.MinimaxOutRecursive(b, depth+1, max_depth)
 		b.UnMakeMove(m)
 		eval:=m.Eval
 		if(geteval!=INVALID) {
@@ -712,5 +716,5 @@ func MinimaxOutRecursive(b TBoard, depth int, max_depth int) int {
 
 func (n *TNode) MiniMaxOut() {
 	b:=n.B
-	MinimaxOutRecursive(b, 0, 10)
+	n.MinimaxOutRecursive(b, 0, 10)
 }

@@ -97,24 +97,19 @@ func (g *TGame) Analyze() {
 
 	g.Ready=false
 
-	for g.Stop==false {
-		tnodes:=len(board.NodeManager.Nodes)
-		addnodes:=500
-		if tnodes>100 {
-			addnodes=5000
-		}
-		if tnodes>20000 {
-			addnodes=10000
-		}
-		if tnodes>50000 {
-			addnodes=25000
-		}
-		for i:=0; (i<addnodes) && (!g.Stop); i++ {
-			g.Node.AddNode()
-		}
-		g.Node.MiniMaxOut()
+	depth:=1
 
-		fmt.Printf("\n%s\ntotal nodes %d\n",g.ToPrintable(),len(board.NodeManager.Nodes))
+	for g.Stop==false {
+
+		for i:=0; (i<5000) && (!g.Stop); i++ {
+				g.Node.AddNode(depth)
+		}
+
+		g.Node.MiniMaxOut(depth)
+
+		fmt.Printf("\n%s\ndepth %d nodes %d\n",g.ToPrintable(),depth,len(board.NodeManager.Nodes))
+
+		depth++
 	}
 
 	g.Ready=true

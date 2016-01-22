@@ -13,11 +13,12 @@ import(
 const INDEX_OF_WHITE    = 1
 const INDEX_OF_BLACK    = 0
 
-const INFINITE          = 10000
-const INVALID           = 10*INFINITE
+const DRAW_SCORE        = 0
 
-const PLUS_INFINITE     = INFINITE
-const MINUS_INFINITE    = -INFINITE
+const MATE_LIMIT        = 9000
+const MATE_SCORE        = 10000
+const INFINITE_SCORE    = 15000
+const INVALID_SCORE     = 20000
 
 //////////////////////////////////////////
 
@@ -300,13 +301,60 @@ func (b *TBoard) InitMoveGen() {
 	b.NextSq()
 }
 
+func (b *TBoard) KingOnBaseRank(c piece.TColor) bool {
+	return (square.RankOf(b.GetKingPos(c))==0)
+}
+
+func (b *TBoard) IsWhiteTurn() bool {
+	return (b.GetTurn()==piece.WHITE)
+}
+
+func (b *TBoard) IsBlackTurn() bool {
+	return (b.GetTurn()==piece.BLACK)
+}
+
+func (b *TBoard) WhiteKingOnBaseRank() bool {
+	return b.KingOnBaseRank(piece.WHITE)
+}
+
+func (b *TBoard) BlackKingOnBaseRank() bool {
+	return b.KingOnBaseRank(piece.BLACK)
+}
+
+func (b *TBoard) TerminalEval() int {
+	wb:=b.WhiteKingOnBaseRank()
+	bb:=b.BlackKingOnBaseRank()
+
+	if wb && bb {
+		return DRAW_SCORE
+	}
+
+	if bb {
+		return -MATE_SCORE
+	}
+
+	if wb {
+		return -MATE_SCORE
+	}
+
+	return DRAW_SCORE
+}
+
 func (b *TBoard) NextLegalMove() bool {
+	if b.BlackKingOnBaseRank() {
+		return false
+	}
+	wb:=b.WhiteKingOnBaseRank()
+	if wb && b.IsWhiteTurn() {
+		return false
+	}
 	for b.NextPseudoLegalMove() {
 		b.MakeMove(b.CurrentMove)
 		incheck:=b.IsInCheck()
 		oppincheck:=b.IsOppInCheck()
+		blackmated:=(wb && (!b.BlackKingOnBaseRank()))
 		b.UnMakeMove(b.CurrentMove)
-		ok:=(!incheck)&&(!oppincheck)
+		ok:=(!incheck)&&(!oppincheck)&&(!blackmated)
 		if !ok {
 			//fmt.Printf("move thrown out for check %s\n",b.CurrentMove.ToAlgeb())
 		}
@@ -642,13 +690,13 @@ func AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
 	ok:=false
 	li:=l-1
 	for i:=0; (i<l) && (!ok); i++ {
+		selm=n.Moves[i]
 		if i==li {
-			selm=n.Moves[li]
 			ok=true
 		} else {
-			ok=r.Intn(100)>50
-			if ok {
-				selm=n.Moves[i]
+			ok=r.Intn(100)>90
+			if(math.Abs(float64(selm.Eval))>MATE_LIMIT) {
+				ok=false
 			}
 		}
 	}
@@ -665,9 +713,9 @@ func AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
 	return false
 }
 
-func (n *TNode) AddNode() bool {
+func (n *TNode) AddNode(max_depth int) bool {
 	b:=n.B
-	success:=AddNodeRecursive(b, 0, 10, []TMove{})
+	success:=AddNodeRecursive(b, 0, max_depth, []TMove{})
 	if !success {
 		//fmt.Printf("\nadding node failed\n")
 	}
@@ -685,36 +733,54 @@ func (ml TMoveList) ToPrintable() string {
 	return fmt.Sprintf("line [ %s ]",buff)
 }
 
-func (ownern *TNode) MinimaxOutRecursive(b TBoard, depth int, max_depth int) int {
+func (ownern *TNode) MinimaxOutRecursive(b TBoard, depth int, max_depth int, positions []TPosition) int {
 	if ownern.AbortMiniMax {
-		return INVALID
+		return INVALID_SCORE
 	}
 	if !NodeManager.DoesNodeExist(b.Pos) {
-		return INVALID
+		return INVALID_SCORE
 	}
 	if(depth>max_depth) {
-		return INVALID
+		return INVALID_SCORE
 	}
 	n:=NodeManager.GetNode(b.Pos)
-	max:=MINUS_INFINITE
-	for i,m := range n.Moves {
+	max:=(-INFINITE_SCORE)
+	if len(n.Moves)==0 {
+		max=b.TerminalEval()
+	} else {
+		for i,m := range n.Moves {
 		b.MakeMove(m)
-		geteval:=ownern.MinimaxOutRecursive(b, depth+1, max_depth)
+		found:=false
+		for i:=0; ((i<len(positions)) && (!found)); i++ {
+			found=(positions[i]==b.Pos)
+		}
+		geteval:=0
+		if !found {			
+			geteval=ownern.MinimaxOutRecursive(b, depth+1, max_depth, append(positions,b.Pos))
+		}
 		b.UnMakeMove(m)
 		eval:=m.Eval
-		if(geteval!=INVALID) {
+		if(geteval!=INVALID_SCORE) {
 			eval=geteval
+			if math.Abs(float64(geteval))>MATE_LIMIT {
+				if(geteval<0) {
+					eval++
+				} else {
+					eval--
+				}
+			}
 		}
 		if(eval>max) {
 			max=eval
 		}
 		n.Moves[i].Eval=eval
+		}
+		n.Sort()
 	}
-	n.Sort()
 	return -max
 }
 
-func (n *TNode) MiniMaxOut() {
+func (n *TNode) MiniMaxOut(max_depth int) {
 	b:=n.B
-	n.MinimaxOutRecursive(b, 0, 10)
+	n.MinimaxOutRecursive(b, 0, max_depth, []TPosition{})
 }

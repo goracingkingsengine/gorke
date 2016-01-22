@@ -2,8 +2,15 @@ package game
 
 import(
 	"fmt"
+	"os"
 	"github.com/goracingkingsengine/gorke/board"
 )
+
+//////////////////////////////////////////////////////
+
+const UCI=true
+
+//////////////////////////////////////////////////////
 
 const START_FEN         = "8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1"
 
@@ -15,6 +22,7 @@ type TGame struct {
 	Node board.TNode
 	Stop bool
 	Ready bool
+	Multipv int
 }
 
 func (g *TGame) ToPrintable() string {
@@ -22,7 +30,9 @@ func (g *TGame) ToPrintable() string {
 }
 
 func (g *TGame) Print() {
-	fmt.Printf("%s",g.ToPrintable())
+	if !UCI {
+		fmt.Printf("%s",g.ToPrintable())
+	}
 }
 
 func (g *TGame) Init() {
@@ -35,6 +45,7 @@ func (g *TGame) Init() {
 func (g *TGame) Reset() {
 	g.B.SetFromFen(START_FEN)
 	g.Init()
+	g.Multipv=1
 }
 
 func (g *TGame) SetFromFen(fen string) bool {
@@ -107,13 +118,32 @@ func (g *TGame) Analyze() {
 
 		g.Node.MiniMaxOut(depth)
 
-		fmt.Printf("\n%s\ndepth %d nodes %d\n",g.ToPrintable(),depth,len(board.NodeManager.Nodes))
+		nodes:=len(board.NodeManager.Nodes)
+
+		if !UCI {
+			fmt.Printf("\n%s\ndepth %d nodes %d\n",g.ToPrintable(),depth,nodes)
+		} else {
+			for i:=0; i<g.Multipv; i++ {
+				if len(g.Node.Moves)>i {
+					g.B.MakeMove(g.Node.Moves[i])
+					line:=fmt.Sprintf("info depth %d multipv %d nodes %d score cp %d pv %s %s\n",
+						depth,i+1,nodes,g.Node.Moves[i].Eval,g.Node.Moves[i].ToAlgeb(),g.B.GetLine())
+					os.Stdout.Write([]byte(line))
+					g.B.UnMakeMove(g.Node.Moves[i])
+				}
+			}
+		}
 
 		depth++
 	}
 
 	g.Ready=true
 	
+}
+
+func (g *TGame) SendBestMove() {
+	sendbestmove:=fmt.Sprintf("bestmove %s\n",g.Node.Moves[0].ToAlgeb())
+	os.Stdout.Write([]byte(sendbestmove))
 }
 
 //////////////////////////////////////////////////////

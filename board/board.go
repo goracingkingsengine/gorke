@@ -29,12 +29,12 @@ const KINGSPOS_INDEX    = 66
 var PIECE_VALUES=map [piece.TPieceType]int{
 	piece.NO_PIECE : 0,
 	piece.KING : 0,
-	piece.QUEEN : 7,
-	piece.ROOK : 5,
-	piece.BISHOP : 3,
-	piece.KNIGHT : 3}
+	piece.QUEEN : 700,
+	piece.ROOK : 500,
+	piece.BISHOP : 300,
+	piece.KNIGHT : 300}
 
-const KING_ADVANCE_VALUE = 4
+const KING_ADVANCE_VALUE = 400
 
 type TPosition [square.BOARD_SIZE+4]byte
 

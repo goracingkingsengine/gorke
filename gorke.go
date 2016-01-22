@@ -29,7 +29,7 @@ func main() {
 
 	board.Init()
 
-	fmt.Printf("\nGorke - Go Racing Kings Chess Variant Engine\n")
+	os.Stdout.Write([]byte("Gorke - Go Racing Kings Chess Variant Engine\n"))
 
 	g.Reset()
 
@@ -39,7 +39,9 @@ func main() {
 
 	for command!="x" {
 
-		fmt.Print("\n> ")
+		if !game.UCI {
+			fmt.Print("\n> ")
+		}
 
 		commandline, _ = reader.ReadString('\n')
 
@@ -88,20 +90,63 @@ func main() {
 				g.Reset()
 			}
 
-			if command=="a" {
+			if (command=="go") || (command=="a") {
 				g.ClearAbortAnalysis()
 				go g.Analyze()
 			}
 
-			if command=="s" {
+			if (command=="s") || (command=="stop") {
 				g.AbortAnalysis()
 				for g.Ready==false {
 					time.Sleep(100 * time.Millisecond)
 				}
+				g.SendBestMove()
 			}
 
 			if command=="f" {
 				g.SetFromFen(GetRest())
+			}
+
+			if command=="position" {
+				tok=s.Scan()
+
+				if tok!=scanner.EOF {
+					if(s.TokenText()=="fen") {
+						g.SetFromFen(GetRest())
+					}
+				}
+			}
+
+			if command=="setoption" {
+				tok=s.Scan()
+
+				if tok!=scanner.EOF {
+					if(s.TokenText()=="name") {
+						tok=s.Scan()
+
+						if tok!=scanner.EOF {
+							name:=s.TokenText()
+
+							tok=s.Scan()
+							if tok!=scanner.EOF {
+								if(s.TokenText()=="value") {
+									tok=s.Scan()
+
+									if tok!=scanner.EOF {
+										value:=s.TokenText()
+
+										if name=="MultiPV" {
+											i,err:=strconv.Atoi(value)
+											if err==nil {
+												g.Multipv=i
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 			
 		}

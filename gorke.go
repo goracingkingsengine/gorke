@@ -27,6 +27,15 @@ func GetRest() string {
 
 var enginerunning=false
 
+func StopEngine() {
+	g.AbortAnalysis()
+	for g.Ready==false {
+		time.Sleep(100 * time.Millisecond)
+	}
+	enginerunning=false
+	g.SendBestMove()
+}
+
 func main() {
 
 	board.Init()
@@ -101,18 +110,16 @@ func main() {
 			}
 
 			if (command=="go") || (command=="a") {
+				if enginerunning {
+					StopEngine()
+				}
 				g.ClearAbortAnalysis()
 				enginerunning=true
 				go g.Analyze()
 			}
 
 			if (command=="s") || (command=="stop") {
-				g.AbortAnalysis()
-				for g.Ready==false {
-					time.Sleep(100 * time.Millisecond)
-				}
-				enginerunning=false
-				g.SendBestMove()
+				StopEngine()
 			}
 
 			if command=="f" {
@@ -125,10 +132,7 @@ func main() {
 				if tok!=scanner.EOF {
 					if(s.TokenText()=="fen") {
 						if enginerunning {
-							g.AbortAnalysis()
-							for g.Ready==false {
-								time.Sleep(100 * time.Millisecond)
-							}
+								StopEngine()
 						}
 						g.SetFromFen(GetRest())
 						if enginerunning {

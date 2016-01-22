@@ -25,6 +25,8 @@ func GetRest() string {
 	return commandline[p:]
 }
 
+var enginerunning=false
+
 func main() {
 
 	board.Init()
@@ -67,6 +69,14 @@ func main() {
 				fmt.Print("x - exit\n")
 			}
 
+			if command=="uci" {
+				os.Stdout.Write([]byte("id name Gorke\n"))
+				os.Stdout.Write([]byte("id author golang\n"))
+				os.Stdout.Write([]byte("\n"))
+				os.Stdout.Write([]byte("option name MultiPV type spin default 1 min 1 max 500\n"))
+				os.Stdout.Write([]byte("uciok\n"))
+			}
+
 			if command=="m" {
 				tok=s.Scan()
 
@@ -92,6 +102,7 @@ func main() {
 
 			if (command=="go") || (command=="a") {
 				g.ClearAbortAnalysis()
+				enginerunning=true
 				go g.Analyze()
 			}
 
@@ -100,6 +111,7 @@ func main() {
 				for g.Ready==false {
 					time.Sleep(100 * time.Millisecond)
 				}
+				enginerunning=false
 				g.SendBestMove()
 			}
 
@@ -112,7 +124,17 @@ func main() {
 
 				if tok!=scanner.EOF {
 					if(s.TokenText()=="fen") {
+						if enginerunning {
+							g.AbortAnalysis()
+							for g.Ready==false {
+								time.Sleep(100 * time.Millisecond)
+							}
+						}
 						g.SetFromFen(GetRest())
+						if enginerunning {
+							g.ClearAbortAnalysis()
+							go g.Analyze()
+						}
 					}
 				}
 			}

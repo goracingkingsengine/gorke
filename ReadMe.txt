@@ -1,4 +1,4 @@
-Racing Kings chess variant engine written in Go
+Gorke is a UCI compatible Racing Kings chess variant engine written in the Go language
 
 to obtain the executable:
 

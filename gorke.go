@@ -25,6 +25,19 @@ func GetRest() string {
 	return commandline[p:]
 }
 
+func Log(what string) {
+	f, err := os.OpenFile("log.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+	    panic(err)
+	}
+
+	defer f.Close()
+
+	if _, err = f.WriteString(what); err != nil {
+	    panic(err)
+	}
+}
+
 var enginerunning=false
 
 func StopEngine() {
@@ -38,9 +51,16 @@ func StopEngine() {
 
 func main() {
 
+	f,err:=os.Create("log.txt")
+	if err!=nil {
+		panic(err)
+	} else {
+		f.Close()
+	}
+
 	board.Init()
 
-	os.Stdout.Write([]byte("Gorke - Go Racing Kings Chess Variant Engine\n"))
+	os.Stdout.Write([]byte("Gorke - Go Racing Kings Chess Variant Engine\n\n"))
 
 	g.Reset()
 
@@ -55,6 +75,8 @@ func main() {
 		}
 
 		commandline, _ = reader.ReadString('\n')
+
+		Log(commandline)
 
 		s.Init(strings.NewReader(commandline))
 		s.Mode=scanner.ScanIdents|scanner.ScanInts
@@ -76,6 +98,14 @@ func main() {
 				fmt.Print("d - del move\n")
 				fmt.Print("dd - del all moves\n")
 				fmt.Print("x - exit\n")
+			}
+
+			if command=="quit" {
+				return
+			}
+
+			if command=="isready" {
+				os.Stdout.Write([]byte("readyok\n"))
 			}
 
 			if command=="uci" {

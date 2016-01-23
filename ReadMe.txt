@@ -2,7 +2,7 @@ Racing Kings chess variant engine written in Go
 
 to obtain the executable:
 
-1) install Go on your computer
+1) install the Go language on your computer
 
 2) create a directory that will serve as a workspace for Go
 

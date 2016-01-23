@@ -17,6 +17,18 @@ var g=new(game.TGame)
 var s scanner.Scanner
 var commandline string
 
+var token string
+
+func NextToken() bool {
+	if s.Scan()!=scanner.EOF {
+		token=s.TokenText()
+		return true
+	} else {
+		token=""
+		return false
+	}
+}
+
 func GetRest() string {
 	var p=s.Pos().Offset+1
 	if (p>=len(commandline)) {
@@ -49,6 +61,10 @@ func StopEngine() {
 	g.SendBestMove()
 }
 
+func Printu(ucistr string) {
+	os.Stdout.Write([]byte(ucistr))
+}
+
 func main() {
 
 	f,err:=os.Create("log.txt")
@@ -60,7 +76,7 @@ func main() {
 
 	board.Init()
 
-	os.Stdout.Write([]byte("Gorke - Go Racing Kings Chess Variant Engine\n\n"))
+	Printu("Gorke Racing Kings Chess Variant Engine\n\n")
 
 	g.Reset()
 
@@ -78,13 +94,12 @@ func main() {
 
 		Log(commandline)
 
+		commandline=strings.TrimSpace(commandline)
+
 		s.Init(strings.NewReader(commandline))
 		s.Mode=scanner.ScanIdents|scanner.ScanInts
-		var tok rune
 
-		tok = s.Scan()
-
-		if tok!=scanner.EOF {
+		if NextToken() {
 
 			command=s.TokenText()
 
@@ -105,22 +120,20 @@ func main() {
 			}
 
 			if command=="isready" {
-				os.Stdout.Write([]byte("readyok\n"))
+				Printu("readyok\n")
 			}
 
 			if command=="uci" {
-				os.Stdout.Write([]byte("id name Gorke\n"))
-				os.Stdout.Write([]byte("id author golang\n"))
-				os.Stdout.Write([]byte("\n"))
-				os.Stdout.Write([]byte("option name MultiPV type spin default 1 min 1 max 500\n"))
-				os.Stdout.Write([]byte("uciok\n"))
+				Printu("id name Gorke\n")
+				Printu("id author golang\n")
+				Printu("\n")
+				Printu("option name MultiPV type spin default 1 min 1 max 500\n")
+				Printu("uciok\n")
 			}
 
 			if command=="m" {
-				tok=s.Scan()
-
-				if tok!=scanner.EOF {
-					i,err:=strconv.Atoi(s.TokenText())
+				if NextToken() {
+					i,err:=strconv.Atoi(token)
 					if err==nil {
 						g.MakeMove(i-1)
 					}
@@ -157,39 +170,70 @@ func main() {
 			}
 
 			if command=="position" {
-				tok=s.Scan()
+				// 0 - position
+				// 1 - fen
+				// 2 - startpos
+				// 3 - moves
+				// 4 - move1
+				// 5 - move2
+				// 6 - ...
 
-				if tok!=scanner.EOF {
-					if(s.TokenText()=="fen") {
-						if enginerunning {
-								StopEngine()
-						}
-						g.SetFromFen(GetRest())
-						if enginerunning {
-							g.ClearAbortAnalysis()
-							go g.Analyze()
-						}
+				// or...
+
+				// 0 - position
+				// 1 - fen
+				// 2 - posfen
+				// 3 - turnfen
+				// 4 - castlefen
+				// 5 - epfen
+				// 6 - halfmovefen
+				// 7 - fullmovefen
+				// 8 - moves
+				// 9 - move1
+				// 10 - move2
+				// 11 - ...
+
+				if enginerunning {
+					StopEngine()
+				}
+				if NextToken() {
+					if(token=="fen") {						
+						if NextToken() {
+							fen:=game.START_FEN
+							parts:=strings.Split(commandline," ")
+							movesat:=3
+							if(token!="startpos") {								
+								if len(parts)>=8 {
+									fen=fmt.Sprintf("%s %s %s %s %s %s",parts[2],parts[3],parts[4],parts[5],parts[6],parts[7])
+									movesat=8
+								}
+							}
+							g.SetFromFen(fen)
+							if len(parts)>movesat {
+								if parts[movesat]=="moves" {
+									for i:=movesat+1; i<len(parts); i++ {
+										g.MakeAlgebMove(parts[i])
+									}
+								}
+							}
+						}						
 					}
+				}
+				if enginerunning {
+					g.ClearAbortAnalysis()
+					go g.Analyze()
 				}
 			}
 
 			if command=="setoption" {
-				tok=s.Scan()
-
-				if tok!=scanner.EOF {
-					if(s.TokenText()=="name") {
-						tok=s.Scan()
-
-						if tok!=scanner.EOF {
-							name:=s.TokenText()
-
-							tok=s.Scan()
-							if tok!=scanner.EOF {
-								if(s.TokenText()=="value") {
-									tok=s.Scan()
-
-									if tok!=scanner.EOF {
-										value:=s.TokenText()
+				if NextToken() {
+					if(token=="name") {
+						if NextToken() {
+							name:=token
+							if NextToken() {
+								if(token=="value") {
+									if NextToken() {
+										value:=token
 
 										if name=="MultiPV" {
 											i,err:=strconv.Atoi(value)

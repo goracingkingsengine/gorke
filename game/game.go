@@ -3,6 +3,7 @@ package game
 import(
 	"fmt"
 	"os"
+	"time"
 	"github.com/goracingkingsengine/gorke/board"
 )
 
@@ -70,6 +71,17 @@ func (g *TGame) MakeMove(i int) {
 	g.Print()
 }
 
+func (g *TGame) MakeAlgebMove(algeb string) bool {
+	for i:=0; i<len(g.Node.Moves); i++ {
+		currentalgeb:=g.Node.Moves[i].ToAlgeb()
+		if currentalgeb==algeb {
+			g.MakeMove(i)
+			return true
+		}
+	}
+	return false
+}
+
 func (g *TGame) DelMove() {
 	g.DelMoveInner()
 	g.Print()
@@ -106,6 +118,8 @@ func (g *TGame) AbortAnalysis() {
 
 func (g *TGame) Analyze() {
 
+	startingTime := time.Now().UTC()
+
 	g.Ready=false
 
 	depth:=1
@@ -126,8 +140,15 @@ func (g *TGame) Analyze() {
 			for i:=0; i<g.Multipv; i++ {
 				if len(g.Node.Moves)>i {
 					g.B.MakeMove(g.Node.Moves[i])
-					line:=fmt.Sprintf("info depth %d multipv %d nodes %d score cp %d pv %s %s\n",
-						depth,i+1,nodes,g.Node.Moves[i].Eval,g.Node.Moves[i].ToAlgeb(),g.B.GetLine())
+					currentTime := time.Now().UTC()
+					durationMilliSeconds:=currentTime.Sub(startingTime).Nanoseconds()/1e6
+					durationSeconds:=currentTime.Sub(startingTime).Nanoseconds()/1e9
+					nps:=int64(0)
+					if(durationSeconds>0) {
+						nps=int64(nodes)/durationSeconds
+					}
+					line:=fmt.Sprintf("info depth %d time %d nps %d multipv %d nodes %d score cp %d pv %s %s\n",
+						depth,durationMilliSeconds,nps,i+1,nodes,g.Node.Moves[i].Eval,g.Node.Moves[i].ToAlgeb(),g.B.GetLine())
 					os.Stdout.Write([]byte(line))
 					g.B.UnMakeMove(g.Node.Moves[i])
 				}

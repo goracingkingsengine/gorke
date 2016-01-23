@@ -236,11 +236,14 @@ func (b *TBoard) GetKingPos(c piece.TColor) square.TSquare {
 	return b.Pos.GetKingPos(c)
 }
 
+// heuristics
+
 func (b *TBoard) EvalCol(c piece.TColor) int {
 	eval:=b.Material[IndexOfColor(c)]
 	ksq:=b.GetKingPos(c)
 	ksqr:=int(square.BOARD_HEIGHTL-square.RankOf(ksq))
 	eval+=ksqr*KING_ADVANCE_VALUE
+	eval+=r.Intn(50)-25
 	return eval
 }
 

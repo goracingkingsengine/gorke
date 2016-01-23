@@ -8,7 +8,7 @@ to obtain the executable:
 
 3) set the 'GOPATH' environment variable to the full path of the workspace directory
 
-4) open a console window and at the command issue the command:
+4) open a console window and at the command prompt issue the command:
 
    go get github.com/goracingkingsengine/gorke
    

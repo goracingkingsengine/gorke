@@ -6,6 +6,7 @@ import(
 	"math/rand"
 	"time"
 	"sort"
+	"sync"
 	"github.com/goracingkingsengine/gorke/piece"
 	"github.com/goracingkingsengine/gorke/square"
 )
@@ -253,8 +254,12 @@ func (b *TBoard) EvalCol(c piece.TColor) int {
 	return eval
 }
 
+var mutex = &sync.Mutex{}
+
 func (b *TBoard) Eval() int {
-	e:=b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)+r.Intn(25)-50
+	//mutex.Lock()
+	e:=b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)//+r.Intn(25)-50
+	//mutex.Unlock()
 	if b.GetTurn()==piece.BLACK {
 		return e
 	}
@@ -664,16 +669,16 @@ func (b *TBoard) ToPrintable() string {
 var AlphaBetaEvals [1000]int
 
 func (n *TNode) Eval() {
-	/*for i:=0; i<len(n.Moves); i++ {
+	for i:=0; i<len(n.Moves); i++ {
 		AlphaBetaEvals[i]=INVALID_SCORE
-	}*/
+	}
 	for i, m:=range n.Moves {
 		n.B.MakeMove(m)
-		//go n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
-		n.Moves[i].Eval=n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
+		go n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
+		//n.Moves[i].Eval=n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
 		n.B.UnMakeMove(m)
 	}
-	/*notready:=true
+	notready:=true
 	for notready && (!AbortMiniMax) {
 		notready=false
 		for i:=0; i<len(n.Moves); i++ {
@@ -681,13 +686,14 @@ func (n *TNode) Eval() {
 				notready=true
 			}
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	if AbortMiniMax {
 		return
 	}
 	for i:=0; i<len(n.Moves); i++ {
-		n.Moves[i].Eval=AlphaBetaEvals[i]+r.Intn(25)-50
-	}*/
+		n.Moves[i].Eval=AlphaBetaEvals[i]+r.Intn(10)-20
+	}
 	n.Sort()
 }
 
@@ -724,7 +730,7 @@ func (ownern *TNode) AddNodeRecursive(b TBoard, depth int, max_depth int, line T
 		if i==li {
 			ok=true
 		} else {
-			ok=r.Intn(100)>40
+			ok=r.Intn(100)>60
 			if(math.Abs(float64(selm.Eval))>MATE_LIMIT) {
 				ok=false
 			}

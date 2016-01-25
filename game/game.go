@@ -153,7 +153,10 @@ func (g *TGame) Analyze() {
 			}
 
 			for j:=0; (j<depth) && (!g.Stop); j++ {
+				//fmt.Printf("adding node ... ")
+				//res:=
 				g.Node.AddNode(depth)
+				//fmt.Printf("res %v\n",res)
 			}
 
 			g.Node.MiniMaxOut(depth)

@@ -9,10 +9,6 @@ import(
 
 //////////////////////////////////////////////////////
 
-const UCI=true
-
-//////////////////////////////////////////////////////
-
 const START_FEN         = "8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1"
 
 //////////////////////////////////////////////////////
@@ -31,14 +27,13 @@ func (g *TGame) ToPrintable() string {
 }
 
 func (g *TGame) Print() {
-	if !UCI {
-		fmt.Printf("%s",g.ToPrintable())
-	}
+	//fmt.Printf("%s",g.ToPrintable())
 }
 
 func (g *TGame) Init() {
 	g.Moves=[]board.TMove{}
 	board.InitNodeManager()
+	board.EvalDepth=1
 	g.Node=g.B.CreateNode()
 	g.Print()
 }
@@ -108,12 +103,12 @@ func (g *TGame) DelAllMoves() {
 
 func (g *TGame) ClearAbortAnalysis() {
 	g.Stop=false
-	g.Node.AbortMiniMax=false
+	board.AbortMiniMax=false	
 }
 
 func (g *TGame) AbortAnalysis() {
 	g.Stop=true
-	g.Node.AbortMiniMax=true
+	board.AbortMiniMax=true
 }
 
 func (g *TGame) Analyze() {
@@ -124,19 +119,22 @@ func (g *TGame) Analyze() {
 
 	depth:=1
 
+	board.Nodes=0
+
+	board.EvalDepth=1
+
+	g.Init()
+
+	board.EvalDepth=2
+
 	for g.Stop==false {
 
-		for i:=0; (i<5000) && (!g.Stop); i++ {
-				g.Node.AddNode(depth)
-		}
+		for k:=0; k<depth; k++ {
 
-		g.Node.MiniMaxOut(depth)
+			nodes:=board.Nodes
 
-		nodes:=len(board.NodeManager.Nodes)
-
-		if !UCI {
-			fmt.Printf("\n%s\ndepth %d nodes %d\n",g.ToPrintable(),depth,nodes)
-		} else {
+			//fmt.Printf("\n%s\ndepth %d nodes %d\n",g.ToPrintable(),depth,nodes)
+			
 			for i:=0; i<g.Multipv; i++ {
 				if len(g.Node.Moves)>i {
 					g.B.MakeMove(g.Node.Moves[i])
@@ -149,17 +147,27 @@ func (g *TGame) Analyze() {
 					}
 					line:=fmt.Sprintf("info depth %d time %d nps %d multipv %d nodes %d score cp %d pv %s %s\n",
 						depth,durationMilliSeconds,nps,i+1,nodes,g.Node.Moves[i].Eval,g.Node.Moves[i].ToAlgeb(),g.B.GetLine())
-					os.Stdout.Write([]byte(line))
+					os.Stdout.Write([]byte(line)[0:])
 					g.B.UnMakeMove(g.Node.Moves[i])
 				}
 			}
+
+			for j:=0; (j<depth) && (!g.Stop); j++ {
+				g.Node.AddNode(depth)
+			}
+
+			g.Node.MiniMaxOut(depth)
+
 		}
 
 		depth++
 	}
 
+	board.EvalDepth=1
+
 	g.Ready=true
-	
+
+	g.ClearAbortAnalysis()	
 }
 
 func (g *TGame) SendBestMove() {

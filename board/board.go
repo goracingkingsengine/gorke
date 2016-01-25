@@ -79,7 +79,6 @@ type TNode struct {
 	B TBoard
 	Moves TMoveList
 	Visited int
-	AbortMiniMax bool
 }
 
 type TNodeManager struct {
@@ -94,7 +93,15 @@ var MoveTablePtrs=make(map[TMoveTableKey]int)
 
 var NodeManager TNodeManager
 
+var AbortMiniMax=false
+
+var EvalDepth=1
+
+var Nodes=0
+
 var r=rand.New(rand.NewSource(time.Now().UnixNano()))
+
+var randStartTime=time.Now().UTC()
 
 ////////////////////////////////////////
 
@@ -243,12 +250,11 @@ func (b *TBoard) EvalCol(c piece.TColor) int {
 	ksq:=b.GetKingPos(c)
 	ksqr:=int(square.BOARD_HEIGHTL-square.RankOf(ksq))
 	eval+=ksqr*KING_ADVANCE_VALUE
-	eval+=r.Intn(50)-25
 	return eval
 }
 
 func (b *TBoard) Eval() int {
-	e:=b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)
+	e:=b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)+r.Intn(25)-50
 	if b.GetTurn()==piece.BLACK {
 		return e
 	}
@@ -655,12 +661,33 @@ func (b *TBoard) ToPrintable() string {
 		b.Eval(),b.EvalCol(piece.WHITE),b.EvalCol(piece.BLACK))
 }
 
+var AlphaBetaEvals [1000]int
+
 func (n *TNode) Eval() {
+	/*for i:=0; i<len(n.Moves); i++ {
+		AlphaBetaEvals[i]=INVALID_SCORE
+	}*/
 	for i, m:=range n.Moves {
 		n.B.MakeMove(m)
-		n.Moves[i].Eval=n.B.Eval()
+		//go n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
+		n.Moves[i].Eval=n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
 		n.B.UnMakeMove(m)
 	}
+	/*notready:=true
+	for notready && (!AbortMiniMax) {
+		notready=false
+		for i:=0; i<len(n.Moves); i++ {
+			if AlphaBetaEvals[i]==INVALID_SCORE {
+				notready=true
+			}
+		}
+	}
+	if AbortMiniMax {
+		return
+	}
+	for i:=0; i<len(n.Moves); i++ {
+		n.Moves[i].Eval=AlphaBetaEvals[i]+r.Intn(25)-50
+	}*/
 	n.Sort()
 }
 
@@ -680,13 +707,13 @@ func (n *TNode) Sort() {
 	sort.Sort(n)
 }
 
-func AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
+func (ownern *TNode) AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
 	n:=b.CreateNode()
 	l:=len(n.Moves)
 	if l<=0 {
 		return false
 	}
-	if depth>max_depth {
+	if depth>=max_depth {
 		return false
 	}
 	var selm TMove
@@ -697,7 +724,7 @@ func AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
 		if i==li {
 			ok=true
 		} else {
-			ok=r.Intn(100)>90
+			ok=r.Intn(100)>40
 			if(math.Abs(float64(selm.Eval))>MATE_LIMIT) {
 				ok=false
 			}
@@ -706,10 +733,10 @@ func AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
 	if ok {
 		b.MakeMove(selm)
 		if NodeManager.DoesNodeExist(b.Pos) {
-			return AddNodeRecursive(b, depth+1, max_depth, append(line,selm))
+			return n.AddNodeRecursive(b, depth+1, max_depth, append(line,selm))
 		} else {
-			b.CreateNode()
-			//fmt.Printf("\nadded %s\n",append(line,selm).ToPrintable())
+			//fmt.Printf("\nadding %s\n",append(line,selm).ToPrintable())
+			b.CreateNode()			
 			return true
 		}
 	}
@@ -718,7 +745,7 @@ func AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
 
 func (n *TNode) AddNode(max_depth int) bool {
 	b:=n.B
-	success:=AddNodeRecursive(b, 0, max_depth, []TMove{})
+	success:=n.AddNodeRecursive(b, 0, max_depth, []TMove{})
 	if !success {
 		//fmt.Printf("\nadding node failed\n")
 	}
@@ -737,7 +764,7 @@ func (ml TMoveList) ToPrintable() string {
 }
 
 func (ownern *TNode) MinimaxOutRecursive(b TBoard, depth int, max_depth int, positions []TPosition) int {
-	if ownern.AbortMiniMax {
+	if AbortMiniMax {
 		return INVALID_SCORE
 	}
 	if !NodeManager.DoesNodeExist(b.Pos) {
@@ -786,4 +813,55 @@ func (ownern *TNode) MinimaxOutRecursive(b TBoard, depth int, max_depth int, pos
 func (n *TNode) MiniMaxOut(max_depth int) {
 	b:=n.B
 	n.MinimaxOutRecursive(b, 0, max_depth, []TPosition{})
+}
+
+func (n *TNode) AlphaBeta(store int,b TBoard, depth int, max_depth int, alpha int, beta int) int {
+
+	if (depth>max_depth) || (AbortMiniMax) {
+		return INVALID_SCORE
+	}
+
+	Nodes++
+	
+	b.InitMoveGen()
+
+	hasmove:=b.NextLegalMove()
+
+	if hasmove {
+		for hasmove {
+			b.MakeMove(b.CurrentMove)
+			eval:=n.AlphaBeta(store,b,depth+1, max_depth, -beta, -alpha)
+			if eval==INVALID_SCORE {
+				eval=b.Eval()
+			}
+			b.UnMakeMove(b.CurrentMove)
+			if math.Abs(float64(eval))>MATE_LIMIT {
+				if(eval<0) {
+					eval++
+				} else {
+					eval--
+				}
+			}
+			if eval>alpha {
+				alpha=eval
+			}
+			if alpha>beta {
+				if depth==0 {
+					AlphaBetaEvals[store]=-alpha
+				}
+				return -alpha
+			}
+			hasmove=b.NextLegalMove()
+		}
+		if depth==0 {
+			AlphaBetaEvals[store]=-alpha
+		}
+		return -alpha
+	} else {
+		t:=-b.TerminalEval()
+		if depth==0 {
+			AlphaBetaEvals[store]=t
+		}
+		return t
+	}
 }

@@ -86,9 +86,7 @@ func main() {
 
 	for command!="x" {
 
-		if !game.UCI {
-			fmt.Print("\n> ")
-		}
+		//fmt.Print("\n> ")
 
 		commandline, _ = reader.ReadString('\n')
 
@@ -156,7 +154,6 @@ func main() {
 				if enginerunning {
 					StopEngine()
 				}
-				g.ClearAbortAnalysis()
 				enginerunning=true
 				go g.Analyze()
 			}
@@ -220,7 +217,6 @@ func main() {
 					}
 				}
 				if enginerunning {
-					g.ClearAbortAnalysis()
 					go g.Analyze()
 				}
 			}

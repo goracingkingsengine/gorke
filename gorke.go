@@ -106,6 +106,7 @@ func main() {
 				fmt.Print("f - set from fen\n")
 				fmt.Print("r - reset\n")
 				fmt.Print("a - analyze\n")
+				fmt.Print("b - alphabeta\n")
 				fmt.Print("s - stop\n")
 				fmt.Print("m [i] - make ith node move\n")
 				fmt.Print("d - del move\n")
@@ -150,12 +151,28 @@ func main() {
 				g.Reset()
 			}
 
-			if (command=="go") || (command=="a") {
+			if (command=="go") {
+				if g.Multipv>1 {
+					command="a"
+				} else {
+					command="b"
+				}
+			}
+
+			if (command=="a") {
 				if enginerunning {
 					StopEngine()
 				}
 				enginerunning=true
 				go g.Analyze()
+			}
+
+			if (command=="b") {
+				if enginerunning {
+					StopEngine()
+				}
+				enginerunning=true
+				go g.AlphaBeta()
 			}
 
 			if (command=="s") || (command=="stop") {

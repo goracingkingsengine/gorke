@@ -140,13 +140,16 @@ func (g *TGame) Analyze() {
 					g.B.MakeMove(g.Node.Moves[i])
 					currentTime := time.Now().UTC()
 					durationMilliSeconds:=currentTime.Sub(startingTime).Nanoseconds()/1e6
-					durationSeconds:=currentTime.Sub(startingTime).Nanoseconds()/1e9
 					nps:=int64(0)
-					if(durationSeconds>0) {
-						nps=int64(nodes)/durationSeconds
+					if(durationMilliSeconds>0) {
+						nps=int64(nodes)*1e3/durationMilliSeconds
 					}
-					line:=fmt.Sprintf("info depth %d time %d nps %d multipv %d nodes %d score cp %d pv %s %s\n",
-						depth,durationMilliSeconds,nps,i+1,nodes,g.Node.Moves[i].Eval,g.Node.Moves[i].ToAlgeb(),g.B.GetLine())
+					currentmovealgeb:=g.Node.Moves[i].ToAlgeb()
+					if i==0 {
+						BestMoveAlgeb=currentmovealgeb
+					}
+					line:=fmt.Sprintf("info depth %d time %d nps %d multipv %d nodes %d %s pv %s %s\n",
+						depth,durationMilliSeconds,nps,i+1,nodes,ScoreOf(g.Node.Moves[i].Eval),currentmovealgeb,g.B.GetLine())
 					os.Stdout.Write([]byte(line)[0:])
 					g.B.UnMakeMove(g.Node.Moves[i])
 				}
@@ -171,11 +174,58 @@ func (g *TGame) Analyze() {
 	g.Ready=true
 
 	g.ClearAbortAnalysis()	
+
 }
 
+var BestMoveAlgeb=""
+
 func (g *TGame) SendBestMove() {
-	sendbestmove:=fmt.Sprintf("bestmove %s\n",g.Node.Moves[0].ToAlgeb())
-	os.Stdout.Write([]byte(sendbestmove))
+	bestmoveline:=fmt.Sprintf("bestmove %s\n",BestMoveAlgeb)
+	os.Stdout.Write([]byte(bestmoveline))
+}
+
+func ScoreOf(eval int) string {
+	if (eval>(-board.MATE_LIMIT)) && (eval<board.MATE_LIMIT) {
+		return fmt.Sprintf("score cp %d",eval)
+	}
+	if eval>0 {
+		return fmt.Sprintf("score mate %d",board.MATE_SCORE-eval)
+	}
+	return fmt.Sprintf("score mate -%d",eval+board.MATE_SCORE)
+}
+
+func (g *TGame) AlphaBeta() {
+
+	startingTime := time.Now().UTC()
+
+	g.Ready=false
+
+	depth:=0
+
+	board.Nodes=0
+
+	board.ClearBestMoves()
+
+	for g.Stop==false {
+		eval:=-board.AlphaBeta(0,board.TMove{},0,g.B,0,depth,-board.INFINITE_SCORE,board.INFINITE_SCORE)
+		if !board.AbortMiniMax {
+			BestMoveAlgeb=g.B.CollectAlphaBetaBestMove()
+			nodes:=board.Nodes
+			currentTime := time.Now().UTC()
+			durationMilliSeconds:=currentTime.Sub(startingTime).Nanoseconds()/1e6
+			nps:=int64(0)
+			if(durationMilliSeconds>0) {
+				nps=int64(nodes)*1e3/durationMilliSeconds
+			}
+			fmt.Printf("depth %d time %d multipv 1 nodes %d nps %d %s pv %s\n",depth+1,durationMilliSeconds,nodes,nps,ScoreOf(eval),g.B.CollectAlphaBetaPv(depth))
+			depth++
+		}
+	}
+
+	g.Ready=true
+
+	g.ClearAbortAnalysis()	
+
 }
 
 //////////////////////////////////////////////////////

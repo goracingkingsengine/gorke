@@ -70,7 +70,9 @@ type TBoard struct {
 	CurrentPiece piece.TPiece
 	CurrentPtr int
 	CurrentMove TMove
-	KingPos [2]byte
+	HasBestMove bool
+	BestMoveDone bool
+	BestMove TMove
 	Material [2]int
 }
 
@@ -80,6 +82,7 @@ type TNode struct {
 	B TBoard
 	Moves TMoveList
 	Visited int
+	Depth int
 }
 
 type TNodeManager struct {
@@ -104,6 +107,8 @@ var r=rand.New(rand.NewSource(time.Now().UnixNano()))
 
 var randStartTime=time.Now().UTC()
 
+var BestMoves=make(map[TPosition]TMove)
+
 ////////////////////////////////////////
 
 func (b *TBoard) CreateNode() TNode {
@@ -119,6 +124,7 @@ func (b *TBoard) CreateNode() TNode {
 	for b.NextLegalMove() {
 		node.Moves=append(node.Moves,b.CurrentMove)
 	}
+	node.Depth=b.GetDepth()
 	node.Eval()
 	NodeManager.AddNode(b.Pos,node)
 	return node
@@ -257,9 +263,9 @@ func (b *TBoard) EvalCol(c piece.TColor) int {
 var mutex = &sync.Mutex{}
 
 func (b *TBoard) Eval() int {
-	//mutex.Lock()
-	e:=b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)//+r.Intn(25)-50
-	//mutex.Unlock()
+	mutex.Lock()
+	e:=b.EvalCol(piece.WHITE)-b.EvalCol(piece.BLACK)+r.Intn(25)-50
+	mutex.Unlock()
 	if b.GetTurn()==piece.BLACK {
 		return e
 	}
@@ -313,6 +319,14 @@ func (b *TBoard) ReportMoveGen() string {
 func (b *TBoard) InitMoveGen() {
 	b.CurrentSq=0
 	b.NextSq()
+	b.HasBestMove=false
+	b.BestMoveDone=true
+	bestmove,found:=BestMoves[b.Pos]
+	if found {
+		b.BestMoveDone=false
+		b.HasBestMove=true
+		b.BestMove=bestmove
+	}
 }
 
 func (b *TBoard) KingOnBaseRank(c piece.TColor) bool {
@@ -362,6 +376,13 @@ func (b *TBoard) NextLegalMove() bool {
 	if wb && b.IsWhiteTurn() {
 		return false
 	}
+	if b.HasBestMove {
+		if !b.BestMoveDone {
+			b.CurrentMove=b.BestMove
+			b.BestMoveDone=true
+			return true
+		}
+	}
 	for b.NextPseudoLegalMove() {
 		b.MakeMove(b.CurrentMove)
 		incheck:=b.IsInCheck()
@@ -373,7 +394,9 @@ func (b *TBoard) NextLegalMove() bool {
 			//fmt.Printf("move thrown out for check %s\n",b.CurrentMove.ToAlgeb())
 		}
 		if ok {
-			return true
+			if b.BestMoveDone || (b.CurrentMove!=b.BestMove) {
+				return true
+			}
 		}
 	}
 	return false
@@ -417,8 +440,8 @@ func InitNodeManager() {
 }
 
 func (nm *TNodeManager) DoesNodeExist(pos TPosition) bool {
-	_,err := nm.Nodes[pos]
-	return err
+	_,found := nm.Nodes[pos]
+	return found
 }
 
 func (nm *TNodeManager) GetNode(pos TPosition) TNode {
@@ -674,7 +697,7 @@ func (n *TNode) Eval() {
 	}
 	for i, m:=range n.Moves {
 		n.B.MakeMove(m)
-		go n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
+		go AlphaBeta(n.Depth+1,TMove{CapPiece:piece.NO_PIECE},i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
 		//n.Moves[i].Eval=n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
 		n.B.UnMakeMove(m)
 	}
@@ -692,7 +715,7 @@ func (n *TNode) Eval() {
 		return
 	}
 	for i:=0; i<len(n.Moves); i++ {
-		n.Moves[i].Eval=AlphaBetaEvals[i]+r.Intn(10)-20
+		n.Moves[i].Eval=AlphaBetaEvals[i]//+r.Intn(10)-20
 	}
 	n.Sort()
 }
@@ -714,6 +737,7 @@ func (n *TNode) Sort() {
 }
 
 func (ownern *TNode) AddNodeRecursive(b TBoard, depth int, max_depth int, line TMoveList) bool {
+	b.SetDepth(depth)
 	n:=b.CreateNode()
 	l:=len(n.Moves)
 	if l<=0 {
@@ -783,6 +807,11 @@ func (ownern *TNode) MinimaxOutRecursive(b TBoard, depth int, max_depth int, pos
 	max:=(-INFINITE_SCORE)
 	if len(n.Moves)==0 {
 		max=b.TerminalEval()
+		if max<0 {
+			max+=depth
+		} else {
+			max-=depth
+		}
 	} else {
 		for i,m := range n.Moves {
 		b.MakeMove(m)
@@ -797,14 +826,7 @@ func (ownern *TNode) MinimaxOutRecursive(b TBoard, depth int, max_depth int, pos
 		b.UnMakeMove(m)
 		eval:=m.Eval
 		if(geteval!=INVALID_SCORE) {
-			eval=geteval
-			if math.Abs(float64(geteval))>MATE_LIMIT {
-				if(geteval<0) {
-					eval++
-				} else {
-					eval--
-				}
-			}
+			eval=geteval			
 		}
 		if(eval>max) {
 			max=eval
@@ -821,11 +843,13 @@ func (n *TNode) MiniMaxOut(max_depth int) {
 	n.MinimaxOutRecursive(b, 0, max_depth, []TPosition{})
 }
 
-func (n *TNode) AlphaBeta(store int,b TBoard, depth int, max_depth int, alpha int, beta int) int {
+func AlphaBeta(base_depth int,genmove TMove,store int,b TBoard, depth int, max_depth int, alpha int, beta int) int {
 
-	if (depth>max_depth) || (AbortMiniMax) {
+	if ((depth>max_depth)&&(genmove.CapPiece==piece.NO_PIECE)) || (AbortMiniMax) {
 		return INVALID_SCORE
 	}
+
+	qsearch:=(depth>max_depth)
 
 	Nodes++
 	
@@ -833,31 +857,39 @@ func (n *TNode) AlphaBeta(store int,b TBoard, depth int, max_depth int, alpha in
 
 	hasmove:=b.NextLegalMove()
 
+	hasokmove:=false
+
 	if hasmove {
 		for hasmove {
-			b.MakeMove(b.CurrentMove)
-			eval:=n.AlphaBeta(store,b,depth+1, max_depth, -beta, -alpha)
-			if eval==INVALID_SCORE {
-				eval=b.Eval()
+			moveok:=true
+			if qsearch {
+				moveok=(b.CurrentMove.To==genmove.To)
 			}
-			b.UnMakeMove(b.CurrentMove)
-			if math.Abs(float64(eval))>MATE_LIMIT {
-				if(eval<0) {
-					eval++
-				} else {
-					eval--
+			if moveok {
+				hasokmove=true
+				b.MakeMove(b.CurrentMove)
+				eval:=AlphaBeta(base_depth,b.CurrentMove,store,b,depth+1, max_depth, -beta, -alpha)
+				if eval==INVALID_SCORE {
+					eval=b.Eval()
 				}
-			}
-			if eval>alpha {
-				alpha=eval
-			}
-			if alpha>beta {
-				if depth==0 {
-					AlphaBetaEvals[store]=-alpha
+				b.UnMakeMove(b.CurrentMove)
+				if eval>alpha {
+					alpha=eval
+					mutex.Lock()
+					BestMoves[b.Pos]=b.CurrentMove
+					mutex.Unlock()
 				}
-				return -alpha
+				if alpha>beta {
+					if depth==0 {
+						AlphaBetaEvals[store]=-alpha
+					}
+					return -alpha
+				}
 			}
 			hasmove=b.NextLegalMove()
+		}
+		if !hasokmove {
+			return INVALID_SCORE
 		}
 		if depth==0 {
 			AlphaBetaEvals[store]=-alpha
@@ -865,9 +897,40 @@ func (n *TNode) AlphaBeta(store int,b TBoard, depth int, max_depth int, alpha in
 		return -alpha
 	} else {
 		t:=-b.TerminalEval()
+		if t<0 {
+			t+=(depth+base_depth)
+		} else {
+			t-=(depth+base_depth)
+		}
 		if depth==0 {
 			AlphaBetaEvals[store]=t
 		}
 		return t
 	}
+}
+
+func ClearBestMoves() {
+	BestMoves=make(map [TPosition]TMove)
+}
+
+func (b *TBoard) CollectAlphaBetaPv(max_depth int) string {
+	dummy:=*b
+	buff:=""
+	for depth:=max_depth+1; depth>0; depth-- {
+		move,found:=BestMoves[dummy.Pos]
+		if !found {
+			return buff
+		}
+		buff+=move.ToAlgeb()+" "
+		dummy.MakeMove(move)
+	}
+	return buff
+}
+
+func (b *TBoard) CollectAlphaBetaBestMove() string {
+	move,found:=BestMoves[b.Pos]
+	if !found {
+		return ""
+	}
+	return move.ToAlgeb()
 }

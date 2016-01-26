@@ -104,11 +104,12 @@ func main() {
 			if command=="l" {
 				fmt.Print("l - list commands\n")
 				fmt.Print("f - set from fen\n")
+				fmt.Print("p - print\n")
 				fmt.Print("r - reset\n")
 				fmt.Print("a - analyze\n")
 				fmt.Print("b - alphabeta\n")
 				fmt.Print("s - stop\n")
-				fmt.Print("m [i] - make ith node move\n")
+				fmt.Print("m [algeb] - make algeb move\n")
 				fmt.Print("d - del move\n")
 				fmt.Print("dd - del all moves\n")
 				fmt.Print("x - exit\n")
@@ -130,12 +131,14 @@ func main() {
 				Printu("uciok\n")
 			}
 
+			if command=="p" {
+				g.Print()
+			}
+
 			if command=="m" {
 				if NextToken() {
-					i,err:=strconv.Atoi(token)
-					if err==nil {
-						g.MakeMove(i-1)
-					}
+					g.MakeAlgebMove(token)
+					g.Print()
 				}
 			}
 
@@ -228,6 +231,8 @@ func main() {
 									for i:=movesat+1; i<len(parts); i++ {
 										g.MakeAlgebMove(parts[i])
 									}
+									g.B.SetDepth(0)
+									g.Node.Depth=0
 								}
 							}
 						}						

@@ -62,6 +62,7 @@ type TMove struct {
 	Piece piece.TPiece
 	CapPiece piece.TPiece
 	Eval int
+	IsForwardKingMove bool
 }
 
 type TBoard struct {
@@ -395,6 +396,12 @@ func (b *TBoard) NextLegalMove() bool {
 		}
 		if ok {
 			if b.BestMoveDone || (b.CurrentMove!=b.BestMove) {
+				// move is ok
+				if piece.TypeOf(b.CurrentMove.Piece)==piece.KING {
+					if square.RankOf(b.CurrentMove.To)>square.RankOf(b.CurrentMove.From) {
+						b.CurrentMove.IsForwardKingMove=true
+					}
+				}
 				return true
 			}
 		}
@@ -416,12 +423,12 @@ func (b *TBoard) NextPseudoLegalMove() bool {
 				b.CurrentPtr=md.NextVector
 			} else if c==piece.NO_COLOR {
 				// empty
-				b.CurrentMove=TMove{b.CurrentSq,md.To,b.CurrentPiece,cp,0}
+				b.CurrentMove=TMove{b.CurrentSq,md.To,b.CurrentPiece,cp,0,false}
 				b.CurrentPtr++
 				return true
 			} else {
 				// capture
-				b.CurrentMove=TMove{b.CurrentSq,md.To,b.CurrentPiece,cp,0}
+				b.CurrentMove=TMove{b.CurrentSq,md.To,b.CurrentPiece,cp,0,false}
 				b.CurrentPtr=md.NextVector
 				return true
 			}
@@ -843,13 +850,23 @@ func (n *TNode) MiniMaxOut(max_depth int) {
 	n.MinimaxOutRecursive(b, 0, max_depth, []TPosition{})
 }
 
+var Qhits=0
+var Qdepth=0
+
 func AlphaBeta(base_depth int,genmove TMove,store int,b TBoard, depth int, max_depth int, alpha int, beta int) int {
 
-	if ((depth>max_depth)&&(genmove.CapPiece==piece.NO_PIECE)) || (AbortMiniMax) {
+	qsearch:=(depth>max_depth)
+	wascapture:=(genmove.CapPiece!=piece.NO_PIECE)
+	wasforwardkingmove:=genmove.IsForwardKingMove
+	needqsearch:=(wascapture||wasforwardkingmove)
+
+	if (qsearch&&(!needqsearch)) || (AbortMiniMax) {
 		return INVALID_SCORE
 	}
 
-	qsearch:=(depth>max_depth)
+	if qsearch && depth>Qdepth {
+		Qdepth=depth
+	}
 
 	Nodes++
 	
@@ -863,7 +880,14 @@ func AlphaBeta(base_depth int,genmove TMove,store int,b TBoard, depth int, max_d
 		for hasmove {
 			moveok:=true
 			if qsearch {
-				moveok=(b.CurrentMove.To==genmove.To)
+				moveok=false
+				if wascapture {
+					moveok=(b.CurrentMove.To==genmove.To)
+				}
+				if wasforwardkingmove {
+					moveok=(moveok||b.CurrentMove.IsForwardKingMove)
+				}
+				Qhits++
 			}
 			if moveok {
 				hasokmove=true
@@ -911,6 +935,8 @@ func AlphaBeta(base_depth int,genmove TMove,store int,b TBoard, depth int, max_d
 
 func ClearBestMoves() {
 	BestMoves=make(map [TPosition]TMove)
+	Qhits=0
+	Qdepth=0
 }
 
 func (b *TBoard) CollectAlphaBetaPv(max_depth int) string {

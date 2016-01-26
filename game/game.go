@@ -27,7 +27,7 @@ func (g *TGame) ToPrintable() string {
 }
 
 func (g *TGame) Print() {
-	//fmt.Printf("%s",g.ToPrintable())
+	fmt.Printf("%s",g.ToPrintable())
 }
 
 func (g *TGame) Init() {
@@ -35,7 +35,6 @@ func (g *TGame) Init() {
 	board.InitNodeManager()
 	board.EvalDepth=1
 	g.Node=g.B.CreateNode()
-	g.Print()
 }
 
 func (g *TGame) Reset() {
@@ -63,7 +62,6 @@ func (g *TGame) MakeMove(i int) {
 	g.B.MakeMove(m)
 	g.Moves=append(g.Moves,m)
 	g.Node=g.B.CreateNode()
-	g.Print()
 }
 
 func (g *TGame) MakeAlgebMove(algeb string) bool {
@@ -79,7 +77,6 @@ func (g *TGame) MakeAlgebMove(algeb string) bool {
 
 func (g *TGame) DelMove() {
 	g.DelMoveInner()
-	g.Print()
 }
 
 func (g *TGame) DelMoveInner() bool {
@@ -96,7 +93,6 @@ func (g *TGame) DelMoveInner() bool {
 func (g *TGame) DelAllMoves() {
 	for g.DelMoveInner() {
 	}
-	g.Print()
 }
 
 //////////////////////////////////////////////////////
@@ -217,7 +213,10 @@ func (g *TGame) AlphaBeta() {
 			if(durationMilliSeconds>0) {
 				nps=int64(nodes)*1e3/durationMilliSeconds
 			}
-			fmt.Printf("depth %d time %d multipv 1 nodes %d nps %d %s pv %s\n",depth+1,durationMilliSeconds,nodes,nps,ScoreOf(eval),g.B.CollectAlphaBetaPv(depth))
+			fmt.Printf("depth %d time %d multipv 1 nodes %d nps %d %s pv %s\n",
+				depth+1,durationMilliSeconds,nodes,nps,ScoreOf(eval),g.B.CollectAlphaBetaPv(depth))
+			/*fmt.Printf("depth %d time %d multipv 1 nodes %d nps %d qhits %d qdepth %d %s pv %s\n",
+				depth+1,durationMilliSeconds,nodes,nps,board.Qhits,board.Qdepth,ScoreOf(eval),g.B.CollectAlphaBetaPv(depth))*/
 			depth++
 		}
 	}

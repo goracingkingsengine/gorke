@@ -211,7 +211,7 @@ func (g *TGame) AlphaBeta() {
 			if(durationMilliSeconds>0) {
 				nps=int64(nodes)*1e3/durationMilliSeconds
 			}
-			fmt.Printf("depth %d time %d multipv 1 nodes %d nps %d %s pv %s\n",
+			fmt.Printf("info depth %d time %d multipv 1 nodes %d nps %d %s pv %s\n",
 				depth+1,durationMilliSeconds,nodes,nps,ScoreOf(eval),g.B.CollectAlphaBetaPv(depth))
 			/*fmt.Printf("depth %d time %d multipv 1 nodes %d nps %d qhits %d qdepth %d %s pv %s\n",
 				depth+1,durationMilliSeconds,nodes,nps,board.Qhits,board.Qdepth,ScoreOf(eval),g.B.CollectAlphaBetaPv(depth))*/

@@ -108,6 +108,7 @@ func main() {
 				fmt.Print("r - reset\n")
 				fmt.Print("a - analyze\n")
 				fmt.Print("b - alphabeta\n")
+				fmt.Print("q - toggle quiescence search\n")
 				fmt.Print("s - stop\n")
 				fmt.Print("m [algeb] - make algeb move\n")
 				fmt.Print("d - del move\n")
@@ -129,6 +130,11 @@ func main() {
 				Printu("\n")
 				Printu("option name MultiPV type spin default 1 min 1 max 500\n")
 				Printu("uciok\n")
+			}
+
+			if command=="q" {
+				board.DoQuiescence=!board.DoQuiescence
+				fmt.Printf("doquiescence %v\n",board.DoQuiescence)
 			}
 
 			if command=="p" {

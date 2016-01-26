@@ -31,9 +31,9 @@ func (g *TGame) Print() {
 }
 
 func (g *TGame) Init() {
+	board.EvalDepth=0
 	g.Moves=[]board.TMove{}
 	board.InitNodeManager()
-	board.EvalDepth=1
 	g.Node=g.B.CreateNode()
 }
 
@@ -117,8 +117,6 @@ func (g *TGame) Analyze() {
 
 	board.Nodes=0
 
-	board.EvalDepth=1
-
 	g.Init()
 
 	board.EvalDepth=2
@@ -165,7 +163,7 @@ func (g *TGame) Analyze() {
 		depth++
 	}
 
-	board.EvalDepth=1
+	board.EvalDepth=0
 
 	g.Ready=true
 

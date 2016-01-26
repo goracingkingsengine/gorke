@@ -100,7 +100,7 @@ var NodeManager TNodeManager
 
 var AbortMiniMax=false
 
-var EvalDepth=1
+var EvalDepth=0
 
 var Nodes=0
 
@@ -109,6 +109,8 @@ var r=rand.New(rand.NewSource(time.Now().UnixNano()))
 var randStartTime=time.Now().UTC()
 
 var BestMoves=make(map[TPosition]TMove)
+
+var DoQuiescence=true
 
 ////////////////////////////////////////
 
@@ -705,7 +707,6 @@ func (n *TNode) Eval() {
 	for i, m:=range n.Moves {
 		n.B.MakeMove(m)
 		go AlphaBeta(n.Depth+1,TMove{CapPiece:piece.NO_PIECE},i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
-		//n.Moves[i].Eval=n.AlphaBeta(i,n.B,0,EvalDepth,-INFINITE_SCORE,INFINITE_SCORE)
 		n.B.UnMakeMove(m)
 	}
 	notready:=true
@@ -857,8 +858,13 @@ func AlphaBeta(base_depth int,genmove TMove,store int,b TBoard, depth int, max_d
 
 	qsearch:=(depth>max_depth)
 	wascapture:=(genmove.CapPiece!=piece.NO_PIECE)
-	wasforwardkingmove:=genmove.IsForwardKingMove
+	//wasforwardkingmove:=genmove.IsForwardKingMove
+	wasforwardkingmove:=false
 	needqsearch:=(wascapture||wasforwardkingmove)
+
+	if !DoQuiescence {
+		needqsearch=false
+	}
 
 	if (qsearch&&(!needqsearch)) || (AbortMiniMax) {
 		return INVALID_SCORE

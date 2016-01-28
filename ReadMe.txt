@@ -8,8 +8,11 @@ to obtain the executable:
 
 3) set the 'GOPATH' environment variable to the full path of the workspace directory
 
-4) open a console window and at the command prompt issue the command:
+4) make sure that git is installed on your computer and is in your path
+   ( on Windows 7 or higher it can be installed from here: https://desktop.github.com/ )
+
+5) open a console window and at the command prompt issue the command:
 
    go get github.com/goracingkingsengine/gorke
    
-5) the executable will be in the 'bin' directory of your workspace
+6) the executable will be in the 'bin' directory of your workspace

@@ -123,7 +123,7 @@ func (g *TGame) Analyze() {
 
 	for g.Stop==false {
 
-		for k:=0; k<depth; k++ {
+		for k:=0; k<1; k++ {
 
 			nodes:=board.Nodes
 

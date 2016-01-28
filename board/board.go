@@ -110,7 +110,7 @@ var randStartTime=time.Now().UTC()
 
 var BestMoves=make(map[TPosition]TMove)
 
-var DoQuiescence=true
+var DoQuiescence=false
 
 ////////////////////////////////////////
 
@@ -762,7 +762,7 @@ func (ownern *TNode) AddNodeRecursive(b TBoard, depth int, max_depth int, line T
 		if i==li {
 			ok=true
 		} else {
-			ok=r.Intn(100)>60
+			ok=r.Intn(100)>10
 			if(math.Abs(float64(selm.Eval))>MATE_LIMIT) {
 				ok=false
 			}
